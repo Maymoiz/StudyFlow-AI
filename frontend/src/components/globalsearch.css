@@ -1,0 +1,21 @@
+.sf-search-wrapper {
+  width: 100%;
+  margin: 24px 0;
+}
+
+.sf-search-input {
+  width: 100%;
+  padding: 16px 20px;
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 12px;
+  color: white;
+  font-size: 16px;
+  outline: none;
+  transition: 0.2s ease;
+}
+
+.sf-search-input:focus {
+  border-color: #6a5af9;
+  background: #151515;
+}
