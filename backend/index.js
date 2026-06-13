@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import userRoutes from "./routes/userRoutes.js";
 import dotenv from "dotenv";
+import searchRoutes from "./routes/searchRoutes.js";
+app.use("/api", searchRoutes);
 
 dotenv.config();
 
