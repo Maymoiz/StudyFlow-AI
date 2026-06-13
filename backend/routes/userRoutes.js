@@ -26,6 +26,24 @@ router.post("/createUser", async (req, res) => {
   }
 });
 
+// Get user profile
+router.get("/getUser/:uid", async (req, res) => {
+  try {
+    const { uid } = req.params;
+
+    const user = await client.getDocument(uid);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json(user);
+  } catch (err) {
+    console.error("GetUser error:", err);
+    res.status(500).json({ error: "Failed to fetch user" });
+  }
+});
+
 // Sync user (update)
 router.post("/syncUser", async (req, res) => {
   try {
