@@ -1,22 +1,50 @@
 import { Routes, Route } from "react-router-dom";
-import DashboardLayout from "./components/layout/DashboardLayout";
-
+import Navbar from "./components/layout/Navbar";
 import Dashboard from "./components/Dashboard";
 import Subjects from "./pages/Subjects";
 import Notes from "./pages/Notes";
-import AITutor from "./pages/AITutor";
-import Progress from "./pages/Progress";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import ProtectedRoute from "./auth/ProtectedRoute";
 
-export default function App() {
+function App() {
   return (
-    <DashboardLayout>
+    <>
+      <Navbar />
+
       <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/subjects" element={<Subjects />} />
-        <Route path="/notes" element={<Notes />} />
-        <Route path="/ai" element={<AITutor />} />
-        <Route path="/progress" element={<Progress />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/subjects"
+          element={
+            <ProtectedRoute>
+              <Subjects />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/notes"
+          element={
+            <ProtectedRoute>
+              <Notes />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
       </Routes>
-    </DashboardLayout>
+    </>
   );
 }
+
+export default App;
