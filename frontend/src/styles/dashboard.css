@@ -60,3 +60,23 @@ h1 {
   color: #6a5af9;
   font-weight: 600;
 }
+.video-grid {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.video-card {
+  background: #1a1a1a;
+  padding: 12px;
+  border-radius: 12px;
+  text-decoration: none;
+  color: white;
+  border: 1px solid #333;
+}
+
+.video-card img {
+  width: 100%;
+  border-radius: 8px;
+}

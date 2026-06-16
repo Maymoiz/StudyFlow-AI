@@ -1,11 +1,10 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
 import userRoutes from "./routes/userRoutes.js";
-import dotenv from "dotenv";
 import searchRoutes from "./routes/searchRoutes.js";
-app.use("/api", searchRoutes);
-
-dotenv.config();
 
 const app = express();
 
@@ -13,6 +12,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/api", userRoutes);
+app.use("/api", searchRoutes);   // <-- THIS WAS MISSING
 
 app.get("/", (req, res) => {
   res.send("StudyFlow Backend Running");

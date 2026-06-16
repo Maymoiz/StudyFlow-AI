@@ -1,13 +1,33 @@
 import { useState } from "react";
 import "../styles/dashboard.css";
 
+// Correct YouTube API video type
+interface Video {
+  id: {
+    videoId: string;
+  };
+  snippet: {
+    title: string;
+    channelTitle: string;
+    thumbnails: {
+      high: {
+        url: string;
+      };
+    };
+  };
+}
+
+interface SearchResponse {
+  answer: string;
+  videos: Video[];
+}
+
 export default function Dashboard() {
   const [query, setQuery] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [listening, setListening] = useState(false);
-  const [response, setResponse] = useState("");
+  const [response, setResponse] = useState<SearchResponse | null>(null);
 
-  // Handle text input
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query && !file) return;
@@ -22,17 +42,16 @@ export default function Dashboard() {
     });
 
     const data = await res.json();
-    setResponse(data.answer);
+    console.log("FRONTEND RECEIVED:", data);
+    setResponse(data);
   };
 
-  // Handle file upload
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
       setFile(e.target.files[0]);
     }
   };
 
-  // Voice search
   const startVoice = () => {
     const recognition = new (window as any).webkitSpeechRecognition();
     recognition.lang = "en-US";
@@ -65,11 +84,7 @@ export default function Dashboard() {
           📄
         </label>
 
-        <button
-          type="button"
-          className="voice-btn"
-          onClick={startVoice}
-        >
+        <button type="button" className="voice-btn" onClick={startVoice}>
           🎤
         </button>
 
@@ -78,15 +93,33 @@ export default function Dashboard() {
         </button>
       </form>
 
-      {file && (
-        <p className="file-info">Uploaded: {file.name}</p>
-      )}
-      
+      {file && <p className="file-info">Uploaded: {file.name}</p>}
       {listening && <p className="listening">Listening… 🎤</p>}
 
-
       <div className="response-box">
-        {response ? response : "Your AI responses will appear here."}
+        {response && (
+          <>
+            <div className="ai-answer">{response.answer}</div>
+
+            <div className="video-grid">
+              {response.videos.map((v: Video, i: number) => (
+                <a
+                  key={i}
+                  href={`https://www.youtube.com/watch?v=${v.id.videoId}`}
+                  target="_blank"
+                  className="video-card"
+                >
+                  <img
+                    src={v.snippet.thumbnails.high.url}
+                    alt={v.snippet.title}
+                  />
+                  <h4>{v.snippet.title}</h4>
+                  <p>{v.snippet.channelTitle}</p>
+                </a>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
