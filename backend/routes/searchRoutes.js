@@ -42,14 +42,34 @@ Return ONLY the keywords.
 
     // 3. Generate explanation + summary + notes + quiz
     const aiPrompt = `
-User query: ${query}
-Uploaded text: ${fileText}
+You are a helpful study tutor. The user wants to learn about: "${query}"
+${fileText ? `\nUploaded notes:\n${fileText}` : ""}
 
-Provide:
-1. A clear explanation
-2. A short summary
-3. Key notes
-4. A 5-question quiz
+Respond using ONLY clean markdown. Use exactly this structure:
+
+## 📖 Explanation
+Write 2-3 clear paragraphs explaining the topic.
+
+## 📝 Summary
+One concise paragraph summarising the key idea.
+
+## 🔑 Key Notes
+- Use bullet points
+- Each point should be short and clear
+- Include 5-7 bullet points
+
+## ❓ Quiz
+For each question use this exact format:
+
+**Q1. Question text here?**
+- A) Option one
+- B) Option two
+- C) Option three
+- D) Option four
+
+✅ **Answer: B) Option two**
+
+Repeat for Q2 through Q5. Do not add any extra text outside this structure.
 `;
 
     const aiResponse = await groq.chat.completions.create({

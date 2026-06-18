@@ -4,15 +4,28 @@ import { auth } from "../firebase";
 import { useNavigate } from "react-router-dom";
 import "../styles/auth.css";
 
+function friendlyError(code: string): string {
+  switch (code) {
+    case "auth/user-not-found": return "No account found with this email.";
+    case "auth/wrong-password": return "Incorrect password. Please try again.";
+    case "auth/invalid-email": return "Please enter a valid email address.";
+    case "auth/too-many-requests": return "Too many attempts. Please try again later.";
+    case "auth/invalid-credential": return "Incorrect email or password.";
+    default: return "Something went wrong. Please try again.";
+  }
+}
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setLoading(true);
 
     try {
       const userCred = await signInWithEmailAndPassword(auth, email, password);
@@ -31,37 +44,52 @@ export default function Login() {
 
       navigate("/");
     } catch (err: any) {
-      setError(err.message);
+      setError(friendlyError(err.code));
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
     <div className="auth-container">
       <form className="auth-box" onSubmit={handleLogin}>
-        <h2>Login</h2>
+        <div className="auth-logo">🎓</div>
+        <h2>Welcome back</h2>
+        <p className="auth-sub">Sign in to continue to StudyFlow</p>
 
-        {error && <p className="auth-error">{error}</p>}
+        {error && <p className="auth-error">⚠️ {error}</p>}
 
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
+        <div className="auth-field">
+          <label>Email</label>
+          <input
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+          />
+        </div>
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
+        <div className="auth-field">
+          <label>Password</label>
+          <input
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+          />
+        </div>
 
-        <button type="submit">Login</button>
+        <button type="submit" className="auth-btn" disabled={loading}>
+          {loading ? <span className="auth-spinner" /> : "Sign in"}
+        </button>
 
         <p className="auth-switch">
-          Don’t have an account? <span onClick={() => navigate("/signup")}>Sign Up</span>
+          Don't have an account?{" "}
+          <span onClick={() => navigate("/signup")}>Create one</span>
         </p>
       </form>
     </div>
