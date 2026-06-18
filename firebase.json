@@ -17,8 +17,7 @@
     }
   ],
   "hosting": {
-    "site": "moisha-studyflow-ai-7ec1f",
-    "public": "y",
+    "public": "frontend/dist",
     "ignore": [
       "firebase.json",
       "**/.*",
