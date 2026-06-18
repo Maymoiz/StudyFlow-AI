@@ -50,7 +50,7 @@ export default function AITutor() {
       if (file) formData.append("file", file);
       setFile(null);
 
-      const res = await fetch("http://localhost:3000/api/search", {
+      const res = await fetch("https://studyflow-ai-production-54ac.up.railway.app/api/search", {
         method: "POST",
         body: formData,
       });

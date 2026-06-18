@@ -31,7 +31,7 @@ export default function Login() {
       const userCred = await signInWithEmailAndPassword(auth, email, password);
       const user = userCred.user;
 
-      await fetch("http://localhost:3000/api/syncUser", {
+      await fetch("https://studyflow-ai-production-54ac.up.railway.app/api/syncUser", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -22,7 +22,7 @@ export default function Profile() {
 
   async function fetchProfile() {
     try {
-      const res = await fetch(`http://localhost:3000/api/getUser/${uid}`);
+      const res = await fetch(`https://studyflow-ai-production-54ac.up.railway.app/api/getUser/${uid}`);
       const data = await res.json();
       setProfile(data);
     } catch (err) {

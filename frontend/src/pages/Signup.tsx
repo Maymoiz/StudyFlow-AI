@@ -32,7 +32,7 @@ export default function Signup() {
 
       await updateProfile(user, { displayName: name });
 
-      await fetch("http://localhost:3000/api/createUser", {
+      await fetch("https://studyflow-ai-production-54ac.up.railway.app/api/createUser", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
