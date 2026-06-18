@@ -118,13 +118,17 @@
   border: 1px solid #2a2a2a;
   padding: 14px 16px;
   border-radius: 12px;
-  font-family: inherit;
   font-size: 14px;
   line-height: 1.7;
   color: #ddd;
-  white-space: pre-wrap;
   word-break: break-word;
   margin: 0;
+}
+
+/* User messages stay as plain text */
+.ai-msg-content--user {
+  font-family: inherit;
+  white-space: pre-wrap;
 }
 
 .ai-msg--user .ai-msg-content {

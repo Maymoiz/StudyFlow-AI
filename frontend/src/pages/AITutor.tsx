@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useLocation } from "react-router-dom";
+import MarkdownRenderer from "../components/MarkdownRenderer";
 import "../styles/aitutor.css";
 
 interface Message {
@@ -115,7 +116,13 @@ export default function AITutor() {
               <div key={i} className={`ai-msg ai-msg--${m.role}`}>
                 <span className="ai-msg-avatar">{m.role === "user" ? "👤" : "🤖"}</span>
                 <div className="ai-msg-bubble">
-                  <pre className="ai-msg-content">{m.content}</pre>
+                  {m.role === "assistant" ? (
+                    <div className="ai-msg-content">
+                      <MarkdownRenderer content={m.content} />
+                    </div>
+                  ) : (
+                    <pre className="ai-msg-content ai-msg-content--user">{m.content}</pre>
+                  )}
                   <span className="ai-msg-time">
                     {new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </span>
