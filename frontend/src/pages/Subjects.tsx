@@ -1,10 +1,15 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import {
+  collection, addDoc, getDocs, updateDoc, deleteDoc,
+  doc, query, where, orderBy, serverTimestamp,
+} from "firebase/firestore";
+import { db } from "../firebase";
 import "../styles/subjects.css";
 
 interface Subject {
-  _id: string;
+  id: string;
   name: string;
   icon: string;
   color: string;
@@ -22,18 +27,18 @@ const COLOR_OPTIONS = [
   "#fb923c","#f472b6","#60a5fa","#a3e635","#e879f9",
 ];
 
-const API = "http://localhost:3000/api";
-
 export default function Subjects() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Subject | null>(null);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<Subject | null>(null);
+  const [formError, setFormError] = useState("");
 
   // Form state
   const [formName, setFormName] = useState("");
@@ -43,20 +48,23 @@ export default function Subjects() {
   const [formTopics, setFormTopics] = useState<string[]>([]);
   const [topicInput, setTopicInput] = useState("");
 
-  // Load subjects from backend
   useEffect(() => {
-    if (!user) return;
-    fetchSubjects();
+    if (user) fetchSubjects();
   }, [user]);
 
   const fetchSubjects = async () => {
+    if (!user) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API}/subjects/${user!.uid}`);
-      const data = await res.json();
-      setSubjects(Array.isArray(data) ? data : []);
-    } catch {
-      setSubjects([]);
+      const q = query(
+        collection(db, "subjects"),
+        where("userId", "==", user.uid),
+        orderBy("createdAt", "asc")
+      );
+      const snap = await getDocs(q);
+      setSubjects(snap.docs.map(d => ({ id: d.id, ...d.data() } as Subject)));
+    } catch (e: any) {
+      console.error("Fetch subjects error:", e);
     } finally {
       setLoading(false);
     }
@@ -66,64 +74,74 @@ export default function Subjects() {
     setEditTarget(null);
     setFormName(""); setFormIcon("📚"); setFormColor("#6a5af9");
     setFormDesc(""); setFormTopics([]); setTopicInput("");
+    setFormError("");
     setShowForm(true);
   };
 
   const openEditForm = (s: Subject) => {
     setEditTarget(s);
     setFormName(s.name); setFormIcon(s.icon); setFormColor(s.color);
-    setFormDesc(s.description); setFormTopics([...s.topics]); setTopicInput("");
+    setFormDesc(s.description || ""); setFormTopics([...s.topics]); setTopicInput("");
+    setFormError("");
     setShowForm(true);
   };
 
   const handleSave = async () => {
     if (!formName.trim() || !user) return;
-    const payload = {
-      uid: user.uid,
-      name: formName.trim(),
-      icon: formIcon,
-      color: formColor,
-      description: formDesc.trim(),
-      topics: formTopics,
-    };
-
-    if (editTarget) {
-      await fetch(`${API}/subjects/${editTarget._id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } else {
-      await fetch(`${API}/subjects`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+    setSaving(true);
+    setFormError("");
+    try {
+      if (editTarget) {
+        await updateDoc(doc(db, "subjects", editTarget.id), {
+          name: formName.trim(),
+          icon: formIcon,
+          color: formColor,
+          description: formDesc.trim(),
+          topics: formTopics,
+        });
+      } else {
+        await addDoc(collection(db, "subjects"), {
+          userId: user.uid,
+          name: formName.trim(),
+          icon: formIcon,
+          color: formColor,
+          description: formDesc.trim(),
+          topics: formTopics,
+          createdAt: serverTimestamp(),
+        });
+      }
+      setShowForm(false);
+      await fetchSubjects();
+    } catch (e: any) {
+      console.error("Save subject error:", e);
+      setFormError("Failed to save — check your internet connection and try again.");
+    } finally {
+      setSaving(false);
     }
-
-    setShowForm(false);
-    fetchSubjects();
   };
 
   const handleDelete = async (id: string) => {
-    await fetch(`${API}/subjects/${id}`, { method: "DELETE" });
-    setActiveSubject(null);
-    fetchSubjects();
+    try {
+      await deleteDoc(doc(db, "subjects", id));
+      setActiveSubject(null);
+      setShowForm(false);
+      await fetchSubjects();
+    } catch (e) {
+      console.error("Delete subject error:", e);
+    }
   };
 
   const addTopic = () => {
     const t = topicInput.trim();
-    if (t && !formTopics.includes(t)) {
-      setFormTopics([...formTopics, t]);
-    }
+    if (t && !formTopics.includes(t)) setFormTopics(prev => [...prev, t]);
     setTopicInput("");
   };
 
-  const removeTopic = (t: string) => setFormTopics(formTopics.filter(x => x !== t));
+  const removeTopic = (t: string) => setFormTopics(prev => prev.filter(x => x !== t));
 
   const filtered = subjects.filter(s =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
-    s.topics?.some(t => t.toLowerCase().includes(search.toLowerCase()))
+    (s.topics || []).some(t => t.toLowerCase().includes(search.toLowerCase()))
   );
 
   const askAI = (topic: string) => navigate("/ai", { state: { prefill: `Explain ${topic}` } });
@@ -152,18 +170,21 @@ export default function Subjects() {
           <div className="subjects-modal" onClick={e => e.stopPropagation()}>
             <h2>{editTarget ? "Edit Subject" : "New Subject"}</h2>
 
+            {formError && <p className="subjects-form-error">⚠️ {formError}</p>}
+
             <label className="form-label">Name</label>
             <input
               className="form-input"
               placeholder="e.g. Biology"
               value={formName}
               onChange={e => setFormName(e.target.value)}
+              autoFocus
             />
 
-            <label className="form-label">Description</label>
+            <label className="form-label">Description (optional)</label>
             <input
               className="form-input"
-              placeholder="Short description (optional)"
+              placeholder="Short description"
               value={formDesc}
               onChange={e => setFormDesc(e.target.value)}
             />
@@ -171,11 +192,9 @@ export default function Subjects() {
             <label className="form-label">Icon</label>
             <div className="icon-grid">
               {ICON_OPTIONS.map(ic => (
-                <button
-                  key={ic}
-                  className={`icon-btn ${formIcon === ic ? "selected" : ""}`}
-                  onClick={() => setFormIcon(ic)}
-                >{ic}</button>
+                <button key={ic} className={`icon-btn ${formIcon === ic ? "selected" : ""}`} onClick={() => setFormIcon(ic)}>
+                  {ic}
+                </button>
               ))}
             </div>
 
@@ -195,31 +214,33 @@ export default function Subjects() {
             <div className="topic-input-row">
               <input
                 className="form-input"
-                placeholder="Add a topic…"
+                placeholder="Add a topic and press Enter…"
                 value={topicInput}
                 onChange={e => setTopicInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addTopic())}
               />
               <button className="topic-add-btn" onClick={addTopic}>Add</button>
             </div>
-            <div className="topic-chips">
-              {formTopics.map(t => (
-                <span key={t} className="topic-chip">
-                  {t}
-                  <button onClick={() => removeTopic(t)}>✕</button>
-                </span>
-              ))}
-            </div>
+            {formTopics.length > 0 && (
+              <div className="topic-chips">
+                {formTopics.map(t => (
+                  <span key={t} className="topic-chip">
+                    {t}
+                    <button onClick={() => removeTopic(t)}>✕</button>
+                  </span>
+                ))}
+              </div>
+            )}
 
             <div className="form-actions">
               <button className="form-cancel-btn" onClick={() => setShowForm(false)}>Cancel</button>
               {editTarget && (
-                <button className="form-delete-btn" onClick={() => { handleDelete(editTarget._id); setShowForm(false); }}>
+                <button className="form-delete-btn" onClick={() => handleDelete(editTarget.id)}>
                   Delete
                 </button>
               )}
-              <button className="form-save-btn" onClick={handleSave} disabled={!formName.trim()}>
-                {editTarget ? "Save changes" : "Create subject"}
+              <button className="form-save-btn" onClick={handleSave} disabled={!formName.trim() || saving}>
+                {saving ? <span className="form-spinner" /> : editTarget ? "Save changes" : "Create subject"}
               </button>
             </div>
           </div>
@@ -240,7 +261,6 @@ export default function Subjects() {
               {activeSubject.description && <p>{activeSubject.description}</p>}
             </div>
           </div>
-
           {activeSubject.topics?.length > 0 ? (
             <>
               <h3 className="topics-heading">Topics</h3>
@@ -255,7 +275,7 @@ export default function Subjects() {
             </>
           ) : (
             <div className="subjects-empty">
-              <p>No topics yet — edit this subject to add some.</p>
+              <p>No topics yet.</p>
               <button className="subjects-add-btn" onClick={() => openEditForm(activeSubject)}>Add topics</button>
             </div>
           )}
@@ -286,7 +306,7 @@ export default function Subjects() {
             <div className="subjects-grid">
               {filtered.map(subject => (
                 <div
-                  key={subject._id}
+                  key={subject.id}
                   className="subject-card"
                   style={{ "--accent": subject.color } as React.CSSProperties}
                   onClick={() => setActiveSubject(subject)}
