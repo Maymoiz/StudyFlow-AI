@@ -9,12 +9,21 @@ import subjectRoutes from "./routes/subjectRoutes.js";
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    "https://moisha-studyflow-ai.web.app",
+    "https://moisha-studyflow-ai.firebaseapp.com",
+    "http://localhost:5173",
+    "http://localhost:3000",
+  ],
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
 app.use(express.json());
 
 app.use("/api", userRoutes);
 app.use("/api", searchRoutes);
-app.use("/api", subjectRoutes);   // <-- THIS WAS MISSING
+app.use("/api", subjectRoutes);   
 
 app.get("/", (req, res) => {
   res.send("StudyFlow Backend Running");
