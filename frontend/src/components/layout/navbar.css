@@ -1,0 +1,191 @@
+/* ─── NAVBAR ────────────────────────────────────────────────── */
+.sf-nav {
+  width: 100%;
+  padding: 0 32px;
+  height: 60px;
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+/* LEFT */
+.sf-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sf-logo-img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.sf-title {
+  font-size: 18px;
+  font-weight: 700;
+  background: var(--grad);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  letter-spacing: -0.03em;
+}
+
+/* RIGHT */
+.sf-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* NAV LINKS */
+.sf-link {
+  position: relative;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-2);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+
+.sf-link:hover {
+  color: var(--text);
+  background: var(--bg-3);
+  text-decoration: none;
+}
+
+.sf-link.active {
+  color: var(--text);
+  background: var(--purple-bg);
+}
+
+.sf-link.active::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 2px;
+  background: var(--grad);
+  border-radius: 2px;
+}
+
+/* AVATAR */
+.sf-avatar-wrapper {
+  position: relative;
+  margin-left: 8px;
+}
+
+.sf-avatar-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.sf-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--border-2);
+  transition: border-color 0.2s;
+}
+
+.sf-avatar-btn:hover .sf-avatar {
+  border-color: var(--purple);
+}
+
+.sf-avatar-initials {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  background: var(--grad);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+
+/* DROPDOWN */
+.sf-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 0;
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow);
+  animation: dropDown 0.15s ease-out;
+}
+
+@keyframes dropDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sf-dropdown-user {
+  padding: 12px 16px 10px;
+}
+
+.sf-dropdown-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 2px;
+}
+
+.sf-dropdown-email {
+  font-size: 12px;
+  color: var(--text-3);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sf-dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+.sf-dropdown-item {
+  padding: 9px 16px;
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: 14px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sf-dropdown-item:hover {
+  background: var(--bg-4);
+  color: var(--text);
+}
+
+.sf-dropdown-signout {
+  color: var(--red) !important;
+}
+
+.sf-dropdown-signout:hover {
+  background: rgba(248, 113, 113, 0.08) !important;
+}

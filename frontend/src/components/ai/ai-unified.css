@@ -1,0 +1,94 @@
+/* Hero Section */
+.ai-hero {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 60px 20px;
+  background: linear-gradient(135deg, #0b0d11, #11131a);
+}
+
+/* Floating AI Bar */
+.ai-bar {
+  width: 850px;
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  /* Glassmorphism */
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+
+  /* Floating */
+  border-radius: 18px;
+
+  transition: 0.25s ease;
+  position: relative;
+}
+
+/* Dragging Glow */
+.ai-bar.dragging {
+  border-color: #ff6ad555;
+    box-shadow: 0 0 20px #ff6ad5aa;
+}
+
+/* Input */
+.ai-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: white;
+  font-size: 17px;
+}
+
+/* Icons */
+.ai-icon {
+  font-size: 22px;
+  cursor: pointer;
+  color: white;
+  transition: 0.2s;
+}
+
+.ai-icon:hover {
+  transform: scale(1.15);
+  color: #fd6aff5c;
+}
+
+/* Upload input hidden */
+.ai-upload input {
+  display: none;
+}
+
+/* File preview */
+.ai-file-preview {
+  position: absolute;
+  top: -40px;
+  left: 20px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  font-size: 14px;
+  color: #ffb3e2;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .ai-bar {
+    width: 100%;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px;
+  }
+
+  .ai-file-preview {
+    position: static;
+    margin-bottom: 10px;
+  }
+
+  .ai-input {
+    width: 100%;
+  }
+}

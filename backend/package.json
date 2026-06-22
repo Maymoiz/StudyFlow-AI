@@ -1,0 +1,25 @@
+{
+  "name": "studyflow-backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "nodemon index.js",
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@sanity/client": "^6.0.0",
+    "axios": "^1.18.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.2",
+    "groq-sdk": "^1.2.1",
+    "multer": "^2.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  }
+}
