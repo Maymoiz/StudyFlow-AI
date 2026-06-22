@@ -1,12 +1,8 @@
-// Central place for backend URLs.
-// Replace YOUR_PROJECT_REF with your actual Supabase project reference
-// (found in Supabase dashboard → Project Settings → General → Reference ID)
-
-const SUPABASE_FUNCTIONS_URL = "https://YOUR_PROJECT_REF.supabase.co/functions/v1";
+const BACKEND_URL = "http://localhost:3000";
 
 export const API = {
-  search: `${SUPABASE_FUNCTIONS_URL}/search`,
-  createUser: `${SUPABASE_FUNCTIONS_URL}/users/createUser`,
-  syncUser: `${SUPABASE_FUNCTIONS_URL}/users/syncUser`,
-  getUser: (uid: string) => `${SUPABASE_FUNCTIONS_URL}/users/getUser/${uid}`,
+  search: `${BACKEND_URL}/api/search`,
+  createUser: `${BACKEND_URL}/api/createUser`,
+  syncUser: `${BACKEND_URL}/api/syncUser`,
+  getUser: (uid: string) => `${BACKEND_URL}/api/getUser/${uid}`,
 };
