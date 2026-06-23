@@ -3,22 +3,18 @@
     {
       "source": "functions",
       "codebase": "default",
-      "disallowLegacyRuntimeConfig": true,
       "ignore": [
         "node_modules",
         ".git",
         "firebase-debug.log",
         "firebase-debug.*.log",
         "*.local"
-      ],
-      "predeploy": [
-        "npm --prefix \"$RESOURCE_DIR\" run lint"
       ]
     }
   ],
   "hosting": {
     "site": "moisha-studyflow-ai-7ec1f",
-    "public": "y",
+    "public": "frontend/dist",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -30,15 +26,5 @@
         "destination": "/index.html"
       }
     ]
-  },
-  "auth": {
-    "providers": {
-      "anonymous": true,
-      "emailPassword": true,
-      "googleSignIn": {
-        "oAuthBrandDisplayName": "Firebase",
-        "supportEmail": "moishamayndlovu@gmail.com"
-      }
-    }
   }
 }

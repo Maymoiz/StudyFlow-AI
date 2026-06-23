@@ -1,8 +1,10 @@
-const BACKEND_URL = "http://localhost:3000";
+// Firebase Cloud Functions URLs
+// Region: us-central1 (default)
+const FUNCTIONS_URL = "https://us-central1-moisha-studyflow-ai.cloudfunctions.net";
 
 export const API = {
-  search: `${BACKEND_URL}/api/search`,
-  createUser: `${BACKEND_URL}/api/createUser`,
-  syncUser: `${BACKEND_URL}/api/syncUser`,
-  getUser: (uid: string) => `${BACKEND_URL}/api/getUser/${uid}`,
+  search: `${FUNCTIONS_URL}/search`,
+  createUser: `${FUNCTIONS_URL}/createUser`,
+  syncUser: `${FUNCTIONS_URL}/syncUser`,
+  getUser: (uid: string) => `${FUNCTIONS_URL}/getUser/${uid}`,
 };
