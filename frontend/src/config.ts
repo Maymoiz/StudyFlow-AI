@@ -1,10 +1,8 @@
-// Firebase Cloud Functions URLs
-// Region: us-central1 (default)
-const FUNCTIONS_URL = "https://us-central1-moisha-studyflow-ai.cloudfunctions.net";
+const SUPABASE_FUNCTIONS_URL = "https://vjnlyxmaalixijosyxvs.supabase.co/functions/v1";
 
 export const API = {
-  search: `${FUNCTIONS_URL}/search`,
-  createUser: `${FUNCTIONS_URL}/createUser`,
-  syncUser: `${FUNCTIONS_URL}/syncUser`,
-  getUser: (uid: string) => `${FUNCTIONS_URL}/getUser/${uid}`,
+  search: `${SUPABASE_FUNCTIONS_URL}/search`,
+  createUser: `${SUPABASE_FUNCTIONS_URL}/users/createUser`,
+  syncUser: `${SUPABASE_FUNCTIONS_URL}/users/syncUser`,
+  getUser: (uid: string) => `${SUPABASE_FUNCTIONS_URL}/users/getUser/${uid}`,
 };

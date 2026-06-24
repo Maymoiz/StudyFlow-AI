@@ -40,10 +40,12 @@ export default function Dashboard() {
     if (file) formData.append("file", file);
 
     try {
+      console.log("Calling API:", API.search);
       const res = await fetch(API.search, {
         method: "POST",
         body: formData,
       });
+      console.log("Response status:", res.status);
       const data = await res.json();
       setResponse(data);
 
@@ -54,8 +56,9 @@ export default function Dashboard() {
         existing.unshift({ query, subject: "General", timestamp: new Date().toISOString() });
         localStorage.setItem(key, JSON.stringify(existing.slice(0, 50)));
       }
-    } catch {
-      setError("⚠️ Could not reach the backend — make sure it's running on port 3000.");
+    } catch (err) {
+      console.error("Search error:", err);
+      setError("⚠️ Could not reach the AI — please try again in a moment.");
     } finally {
       setLoading(false);
     }
