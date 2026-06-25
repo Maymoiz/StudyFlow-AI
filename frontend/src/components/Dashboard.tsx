@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import MarkdownRenderer from "./MarkdownRenderer";
 import { API } from "../config";
+import { useGamification } from "../hooks/useGamification";
 import "../styles/dashboard.css";
 
 interface Video {
@@ -23,6 +24,7 @@ interface SearchResponse {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { awardXP } = useGamification();
   const [query, setQuery] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -67,6 +69,7 @@ export default function Dashboard() {
       const data = await res.json();
       if (data.error) { setError(`⚠️ ${data.error}`); return; }
       setResponse(data);
+      await awardXP(file && !query.trim() ? "pdf" : "search");
 
       if (user) {
         const key = `studyflow_searches_${user.uid}`;

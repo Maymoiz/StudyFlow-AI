@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useGamification } from "../hooks/useGamification";
 import {
   collection, addDoc, getDocs, updateDoc, deleteDoc,
   doc, query, where, serverTimestamp,
@@ -29,6 +30,7 @@ const COLOR_OPTIONS = [
 
 export default function Subjects() {
   const { user } = useAuth();
+  const { awardXP } = useGamification();
   const navigate = useNavigate();
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -111,6 +113,7 @@ export default function Subjects() {
           topics: formTopics,
           createdAt: serverTimestamp(),
         });
+        await awardXP("subject");
       }
       setShowForm(false);
       await fetchSubjects();

@@ -5,7 +5,7 @@ import {
   doc, query, where, serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import "../styles/notes.css";
+import { useGamification } from "../hooks/useGamification";
 
 interface Note {
   id: string;
@@ -31,6 +31,7 @@ const SUBJECT_COLORS: Record<string, string> = {
 
 export default function Notes() {
   const { user } = useAuth();
+  const { awardXP } = useGamification();
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -105,6 +106,7 @@ export default function Notes() {
           subject, tags, pinned,
           createdAt: serverTimestamp(),
         });
+        await awardXP("note");
       }
       setShowForm(false);
       await fetchNotes();
