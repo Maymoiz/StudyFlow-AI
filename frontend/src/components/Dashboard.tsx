@@ -1,37 +1,24 @@
 import { useState, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
-import MarkdownRenderer from "./MarkdownRenderer";
+import StudyResponse from "./StudyResponse";
+import type { StudyData } from "./StudyResponse";
 import { API } from "../config";
 import { useGamification } from "../hooks/useGamification";
 import "../styles/dashboard.css";
 
-interface Video {
-  id: { videoId: string };
-  snippet: {
-    title: string;
-    channelTitle: string;
-    thumbnails: { high: { url: string } };
-  };
-}
-
-interface SearchResponse {
-  answer: string;
-  videos: Video[];
-  mode?: string;
-  fileName?: string;
-  extractedLength?: number;
-}
+const ACCEPTED_FILE_TYPES = ".pdf,.txt,.doc,.docx,.md,.csv,.json,.rtf";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const { awardXP } = useGamification();
+
   const [query, setQuery] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [listening, setListening] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState("");
-  const [response, setResponse] = useState<SearchResponse | null>(null);
+  const [response, setResponse] = useState<StudyData | null>(null);
   const [error, setError] = useState("");
   const [mode, setMode] = useState<"search" | "pdf">("search");
   const [copied, setCopied] = useState(false);
@@ -39,8 +26,10 @@ export default function Dashboard() {
 
   const LOADING_MSGS = {
     search: ["Thinking…", "Generating explanation…", "Building your quiz…"],
-    pdf: ["Reading your PDF…", "Extracting content…", "Generating study materials…"],
+    pdf: ["Reading your document…", "Extracting content…", "Generating study materials…"],
   };
+
+  const isFileMode = (f: File | null) => !!f;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,9 +39,8 @@ export default function Dashboard() {
     setError("");
     setResponse(null);
 
-    // Cycle loading messages
     let msgIdx = 0;
-    const msgs = LOADING_MSGS[file && mode === "pdf" ? "pdf" : "search"];
+    const msgs = LOADING_MSGS[isFileMode(file) ? "pdf" : "search"];
     setLoadingMsg(msgs[0]);
     const msgInterval = setInterval(() => {
       msgIdx = (msgIdx + 1) % msgs.length;
@@ -60,8 +48,8 @@ export default function Dashboard() {
     }, 2500);
 
     const formData = new FormData();
-    formData.append("query", query);
-    formData.append("mode", file && !query.trim() ? "pdf" : "search");
+    formData.append("query", query.trim());
+    formData.append("mode", isFileMode(file) ? "pdf" : "search");
     if (file) formData.append("file", file);
 
     try {
@@ -69,12 +57,12 @@ export default function Dashboard() {
       const data = await res.json();
       if (data.error) { setError(`⚠️ ${data.error}`); return; }
       setResponse(data);
-      await awardXP(file && !query.trim() ? "pdf" : "search");
+      await awardXP(isFileMode(file) ? "pdf" : "search");
 
       if (user) {
         const key = `studyflow_searches_${user.uid}`;
         const existing = JSON.parse(localStorage.getItem(key) || "[]");
-        existing.unshift({ query: query || file?.name || "PDF upload", subject: "General", timestamp: new Date().toISOString() });
+        existing.unshift({ query: query.trim() || file?.name || "Document upload", subject: "General", timestamp: new Date().toISOString() });
         localStorage.setItem(key, JSON.stringify(existing.slice(0, 50)));
       }
     } catch (err) {
@@ -87,9 +75,7 @@ export default function Dashboard() {
 
   const handleFile = (f: File) => {
     setFile(f);
-    if (f.type === "application/pdf" || f.name.endsWith(".pdf")) {
-      setMode("pdf");
-    }
+    setMode("pdf");
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -109,21 +95,27 @@ export default function Dashboard() {
   };
 
   const handleCopy = () => {
-    if (response) {
-      navigator.clipboard.writeText(response.answer);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+    if (!response) return;
+    const text = `${response.explanation}\n\n${response.summary}\n\n${response.keyNotes?.join("\n")}`;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleSaveAsNote = () => {
     if (!response || !user) return;
     const key = `studyflow_notes_${user.uid}`;
     const existing = JSON.parse(localStorage.getItem(key) || "[]");
+    const content = [
+      response.overview ? `${response.overview}\n` : "",
+      response.explanation,
+      "\nSummary:\n" + response.summary,
+      "\nKey Notes:\n" + (response.keyNotes || []).map(n => `• ${n}`).join("\n"),
+    ].join("\n");
     existing.unshift({
       id: crypto.randomUUID(),
-      title: query || response.fileName || "AI Generated Note",
-      content: response.answer,
+      title: query.trim() || response.fileName || "AI Generated Note",
+      content,
       subject: "Other",
       createdAt: new Date().toISOString(),
     });
@@ -135,20 +127,18 @@ export default function Dashboard() {
     <div className="dashboard">
       <div className="dashboard-hero">
         <h1>What do you want to study today?</h1>
-        <p className="dashboard-sub">Ask a question, upload a PDF, or use your voice.</p>
+        <p className="dashboard-sub">Ask a question, upload a document, or use your voice.</p>
       </div>
 
-      {/* MODE TABS */}
       <div className="dash-tabs">
         <button className={`dash-tab ${mode === "search" ? "active" : ""}`} onClick={() => { setMode("search"); setFile(null); }}>
           🔍 Ask a question
         </button>
         <button className={`dash-tab ${mode === "pdf" ? "active" : ""}`} onClick={() => setMode("pdf")}>
-          📄 Upload PDF
+          📄 Upload Document
         </button>
       </div>
 
-      {/* SEARCH MODE */}
       {mode === "search" && (
         <form className="search-box" onSubmit={handleSubmit}>
           <input
@@ -159,7 +149,7 @@ export default function Dashboard() {
             autoFocus
           />
           <label className="upload-btn" title="Attach a file">
-            <input type="file" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
+            <input type="file" accept={ACCEPTED_FILE_TYPES} onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
             📎
           </label>
           <button type="button" className="voice-btn" onClick={startVoice} title="Voice input">🎤</button>
@@ -169,7 +159,6 @@ export default function Dashboard() {
         </form>
       )}
 
-      {/* PDF MODE */}
       {mode === "pdf" && (
         <div className="pdf-section">
           <div
@@ -182,7 +171,7 @@ export default function Dashboard() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.txt,.doc,.docx"
+              accept={ACCEPTED_FILE_TYPES}
               hidden
               onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}
             />
@@ -198,8 +187,8 @@ export default function Dashboard() {
             ) : (
               <div className="pdf-dropzone-inner">
                 <span className="pdf-dropzone-icon">📄</span>
-                <p className="pdf-dropzone-title">Drop your PDF here</p>
-                <p className="pdf-dropzone-sub">or click to browse — PDF, TXT, DOC supported</p>
+                <p className="pdf-dropzone-title">Drop your document here</p>
+                <p className="pdf-dropzone-sub">or click to browse — PDF, DOC, DOCX, TXT, MD, CSV supported</p>
               </div>
             )}
           </div>
@@ -212,27 +201,19 @@ export default function Dashboard() {
                 value={query}
                 onChange={e => setQuery(e.target.value)}
               />
+              <p className="pdf-query-hint">Your question will be answered directly using this document's content.</p>
             </div>
           )}
 
-          <button
-            className="pdf-generate-btn"
-            onClick={handleSubmit as any}
-            disabled={loading || !file}
-          >
+          <button className="pdf-generate-btn" onClick={handleSubmit as any} disabled={loading || !file}>
             {loading ? <><span className="go-spinner" /> {loadingMsg}</> : "✨ Generate Study Materials"}
           </button>
         </div>
       )}
 
-      {/* File chip for search mode */}
-      {mode === "search" && file && (
-        <p className="file-info">📎 {file.name} <span onClick={() => setFile(null)}>✕</span></p>
-      )}
       {listening && <p className="listening">🎤 Listening…</p>}
       {error && <p className="dashboard-error">{error}</p>}
 
-      {/* LOADING */}
       {loading && mode === "search" && (
         <div className="dashboard-loading">
           <p className="loading-msg">{loadingMsg}</p>
@@ -242,53 +223,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* RESPONSE */}
       {response && !loading && (
-        <div className="response-box">
-          {response.mode === "pdf" && (
-            <div className="pdf-source-banner">
-              📄 Generated from <strong>{response.fileName}</strong>
-              <span className="pdf-chars">{response.extractedLength?.toLocaleString()} characters extracted</span>
-            </div>
-          )}
-
-          <div className="ai-answer-card">
-            <div className="ai-answer-header">
-              <span className="ai-answer-badge">🤖 AI Answer</span>
-              <div className="ai-answer-actions">
-                <button className="ai-copy-btn" onClick={handleCopy}>
-                  {copied ? "✓ Copied" : "Copy"}
-                </button>
-                <button className="ai-save-btn" onClick={handleSaveAsNote} title="Save to Notes">
-                  📝 Save Note
-                </button>
-              </div>
-            </div>
-            <div className="ai-answer-body">
-              <MarkdownRenderer content={response.answer} />
-            </div>
-          </div>
-
-          {response.videos?.length > 0 && (
-            <div className="videos-section">
-              <h3 className="videos-heading">📺 Related Videos</h3>
-              <div className="video-grid">
-                {response.videos.map((v, i) => (
-                  <a key={i} href={`https://www.youtube.com/watch?v=${v.id.videoId}`} target="_blank" rel="noreferrer" className="video-card">
-                    <div className="video-thumb-wrap">
-                      <img src={v.snippet.thumbnails.high.url} alt={v.snippet.title} />
-                      <span className="video-play-overlay">▶</span>
-                    </div>
-                    <div className="video-info">
-                      <h4>{v.snippet.title}</h4>
-                      <p>{v.snippet.channelTitle}</p>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <StudyResponse data={response} onCopy={handleCopy} onSaveNote={handleSaveAsNote} copied={copied} />
       )}
     </div>
   );

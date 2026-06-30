@@ -57,9 +57,21 @@ export default function AITutor() {
       });
       const data = await res.json();
 
+      let content = "Sorry, I couldn't generate a response.";
+      if (data.explanation) {
+        content = [
+          data.overview ? `${data.overview}\n` : "",
+          data.explanation,
+          `\n**Summary:** ${data.summary}`,
+          data.keyNotes?.length ? `\n**Key Notes:**\n${data.keyNotes.map((n: string) => `- ${n}`).join("\n")}` : "",
+        ].filter(Boolean).join("\n");
+      } else if (data.error) {
+        content = `⚠️ ${data.error}`;
+      }
+
       const assistantMsg: Message = {
         role: "assistant",
-        content: data.answer || "Sorry, I couldn't generate a response.",
+        content,
         timestamp: new Date().toISOString(),
       };
       setMessages(prev => [...prev, assistantMsg]);

@@ -9,6 +9,7 @@ import ProtectedRoute from "./auth/ProtectedRoute";
 import Profile from "./pages/Profile";
 import AITutor from "./pages/AITutor";
 import Progress from "./pages/Progress";
+import Flashcards from "./pages/flashcards";
 import XPPopup from "./components/XPPopup";
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
         <Route path="/notes" element={<ProtectedRoute><Notes /></ProtectedRoute>} />
         <Route path="/ai" element={<ProtectedRoute><AITutor /></ProtectedRoute>} />
         <Route path="/progress" element={<ProtectedRoute><Progress /></ProtectedRoute>} />
+        <Route path="/flashcards" element={<ProtectedRoute><Flashcards /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />

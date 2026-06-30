@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
 import {
   collection, addDoc, getDocs, updateDoc, deleteDoc,
@@ -6,6 +6,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useGamification } from "../hooks/useGamification";
+import "../styles/notes.css";
 
 interface Note {
   id: string;
@@ -21,17 +22,16 @@ interface Note {
 const SUBJECTS = ["Math", "Science", "History", "English", "Computer Science", "Other"];
 
 const SUBJECT_COLORS: Record<string, string> = {
-  "Math": "#6a5af9",
-  "Science": "#22d3ee",
-  "History": "#f59e0b",
-  "English": "#34d399",
-  "Computer Science": "#b372f3",
-  "Other": "#888",
+  "Math": "#6a5af9", "Science": "#22d3ee", "History": "#f59e0b",
+  "English": "#34d399", "Computer Science": "#b372f3", "Other": "#888",
 };
+
+type SortMode = "newest" | "oldest" | "az";
 
 export default function Notes() {
   const { user } = useAuth();
   const { awardXP } = useGamification();
+
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -39,7 +39,8 @@ export default function Notes() {
   const [editTarget, setEditTarget] = useState<Note | null>(null);
   const [activeNote, setActiveNote] = useState<Note | null>(null);
   const [search, setSearch] = useState("");
-  const [filterSubject, setFilterSubject] = useState("All");
+  const [activeSubject, setActiveSubject] = useState("All");
+  const [sortMode, setSortMode] = useState<SortMode>("newest");
 
   // Form state
   const [title, setTitle] = useState("");
@@ -57,15 +58,7 @@ export default function Notes() {
     try {
       const q = query(collection(db, "notes"), where("userId", "==", user.uid));
       const snap = await getDocs(q);
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Note));
-      data.sort((a, b) => {
-        if (a.pinned && !b.pinned) return -1;
-        if (!a.pinned && b.pinned) return 1;
-        const aTime = a.createdAt?.seconds ?? 0;
-        const bTime = b.createdAt?.seconds ?? 0;
-        return bTime - aTime;
-      });
-      setNotes(data);
+      setNotes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Note)));
     } catch (e) {
       console.error("Fetch notes error:", e);
     } finally {
@@ -75,7 +68,7 @@ export default function Notes() {
 
   const openAddForm = () => {
     setEditTarget(null);
-    setTitle(""); setContent(""); setSubject("Other");
+    setTitle(""); setContent(""); setSubject(activeSubject !== "All" ? activeSubject : "Other");
     setTags([]); setTagInput(""); setPinned(false);
     setShowForm(true);
   };
@@ -95,16 +88,13 @@ export default function Notes() {
     try {
       if (editTarget) {
         await updateDoc(doc(db, "notes", editTarget.id), {
-          title: title.trim(), content: content.trim(),
-          subject, tags, pinned,
+          title: title.trim(), content: content.trim(), subject, tags, pinned,
           updatedAt: serverTimestamp(),
         });
       } else {
         await addDoc(collection(db, "notes"), {
-          userId: user.uid,
-          title: title.trim(), content: content.trim(),
-          subject, tags, pinned,
-          createdAt: serverTimestamp(),
+          userId: user.uid, title: title.trim(), content: content.trim(),
+          subject, tags, pinned, createdAt: serverTimestamp(),
         });
         await awardXP("note");
       }
@@ -135,43 +125,104 @@ export default function Notes() {
     setTagInput("");
   };
 
-  const filtered = notes.filter(n => {
-    const matchSearch =
-      n.title.toLowerCase().includes(search.toLowerCase()) ||
-      n.content.toLowerCase().includes(search.toLowerCase()) ||
-      n.tags?.some(t => t.includes(search.toLowerCase()));
-    const matchSubject = filterSubject === "All" || n.subject === filterSubject;
-    return matchSearch && matchSubject;
-  });
+  // Counts per subject for sidebar
+  const subjectCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    notes.forEach(n => { counts[n.subject] = (counts[n.subject] || 0) + 1; });
+    return counts;
+  }, [notes]);
 
-  const pinned_notes = filtered.filter(n => n.pinned);
-  const unpinned_notes = filtered.filter(n => !n.pinned);
+  const filtered = useMemo(() => {
+    let result = notes.filter(n => {
+      const matchSearch =
+        n.title.toLowerCase().includes(search.toLowerCase()) ||
+        n.content.toLowerCase().includes(search.toLowerCase()) ||
+        n.tags?.some(t => t.includes(search.toLowerCase()));
+      const matchSubject = activeSubject === "All" || n.subject === activeSubject;
+      return matchSearch && matchSubject;
+    });
+
+    result.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      const aTime = a.createdAt?.seconds ?? 0;
+      const bTime = b.createdAt?.seconds ?? 0;
+      if (sortMode === "newest") return bTime - aTime;
+      if (sortMode === "oldest") return aTime - bTime;
+      return a.title.localeCompare(b.title);
+    });
+
+    return result;
+  }, [notes, search, activeSubject, sortMode]);
 
   return (
     <div className="notes-page">
-      <div className="notes-header">
-        <div>
-          <h1>Notes</h1>
-          <p className="notes-sub">{notes.length} note{notes.length !== 1 ? "s" : ""} · synced</p>
-        </div>
-        <button className="notes-add-btn" onClick={openAddForm}>+ New Note</button>
-      </div>
+      <div className="notes-layout">
+        {/* SIDEBAR */}
+        <aside className="notes-sidebar">
+          <button className="notes-add-btn" onClick={openAddForm}>+ New Note</button>
 
-      <div className="notes-toolbar">
-        <input
-          className="notes-search"
-          placeholder="Search notes, tags…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-        <div className="notes-filter-pills">
-          {["All", ...SUBJECTS].map(s => (
+          <div className="notes-sidebar-section">
+            <p className="notes-sidebar-label">Subjects</p>
             <button
-              key={s}
-              className={`filter-pill ${filterSubject === s ? "active" : ""}`}
-              onClick={() => setFilterSubject(s)}
-            >{s}</button>
-          ))}
+              className={`notes-sidebar-item ${activeSubject === "All" ? "active" : ""}`}
+              onClick={() => setActiveSubject("All")}
+            >
+              <span>📚 All Notes</span>
+              <span className="notes-sidebar-count">{notes.length}</span>
+            </button>
+            {SUBJECTS.map(s => (
+              <button
+                key={s}
+                className={`notes-sidebar-item ${activeSubject === s ? "active" : ""}`}
+                onClick={() => setActiveSubject(s)}
+              >
+                <span>
+                  <span className="notes-sidebar-dot" style={{ background: SUBJECT_COLORS[s] }} />
+                  {s}
+                </span>
+                <span className="notes-sidebar-count">{subjectCounts[s] || 0}</span>
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        {/* MAIN CONTENT */}
+        <div className="notes-main">
+          <div className="notes-header">
+            <div>
+              <h1>{activeSubject === "All" ? "All Notes" : activeSubject}</h1>
+              <p className="notes-sub">{filtered.length} note{filtered.length !== 1 ? "s" : ""}</p>
+            </div>
+          </div>
+
+          <div className="notes-toolbar">
+            <input
+              className="notes-search"
+              placeholder="Search notes, tags…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            <select className="notes-sort" value={sortMode} onChange={e => setSortMode(e.target.value as SortMode)}>
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="az">A → Z</option>
+            </select>
+          </div>
+
+          {loading ? (
+            <div className="notes-loading"><div className="notes-spinner" /><p>Loading notes…</p></div>
+          ) : filtered.length === 0 ? (
+            <div className="notes-empty">
+              <span className="notes-empty-icon">📝</span>
+              <p>{notes.length === 0 ? "No notes yet — create your first one." : "No notes match your search."}</p>
+            </div>
+          ) : (
+            <div className="notes-grid">
+              {filtered.map(note => (
+                <NoteCard key={note.id} note={note} onClick={() => setActiveNote(note)} onDelete={handleDelete} onPin={handlePin} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -184,18 +235,10 @@ export default function Notes() {
               <button className="notes-close-btn" onClick={() => setShowForm(false)}>✕</button>
             </div>
 
-            <input
-              className="notes-input"
-              placeholder="Title"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              autoFocus
-            />
-
+            <input className="notes-input" placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} autoFocus />
             <select className="notes-select" value={subject} onChange={e => setSubject(e.target.value)}>
               {SUBJECTS.map(s => <option key={s}>{s}</option>)}
             </select>
-
             <textarea
               className="notes-textarea"
               placeholder="Write your notes here…"
@@ -218,10 +261,7 @@ export default function Notes() {
             {tags.length > 0 && (
               <div className="notes-tags">
                 {tags.map(t => (
-                  <span key={t} className="note-tag">
-                    #{t}
-                    <button onClick={() => setTags(tags.filter(x => x !== t))}>✕</button>
-                  </span>
+                  <span key={t} className="note-tag">#{t}<button onClick={() => setTags(tags.filter(x => x !== t))}>✕</button></span>
                 ))}
               </div>
             )}
@@ -234,15 +274,9 @@ export default function Notes() {
             <div className="notes-modal-actions">
               <button className="notes-cancel-btn" onClick={() => setShowForm(false)}>Cancel</button>
               {editTarget && (
-                <button className="notes-delete-modal-btn" onClick={() => { handleDelete(editTarget.id); setShowForm(false); }}>
-                  Delete
-                </button>
+                <button className="notes-delete-modal-btn" onClick={() => { handleDelete(editTarget.id); setShowForm(false); }}>Delete</button>
               )}
-              <button
-                className="notes-save-btn"
-                onClick={handleSave}
-                disabled={!title.trim() || !content.trim() || saving}
-              >
+              <button className="notes-save-btn" onClick={handleSave} disabled={!title.trim() || !content.trim() || saving}>
                 {saving ? "Saving…" : editTarget ? "Save changes" : "Save Note"}
               </button>
             </div>
@@ -270,82 +304,37 @@ export default function Notes() {
                 : "Just now"}
             </p>
             {activeNote.tags?.length > 0 && (
-              <div className="notes-tags">
-                {activeNote.tags.map(t => <span key={t} className="note-tag">#{t}</span>)}
-              </div>
+              <div className="notes-tags">{activeNote.tags.map(t => <span key={t} className="note-tag">#{t}</span>)}</div>
             )}
             <pre className="notes-view-content">{activeNote.content}</pre>
             <button className="notes-delete-btn" onClick={() => handleDelete(activeNote.id)}>Delete Note</button>
           </div>
         </div>
       )}
-
-      {/* NOTES GRID */}
-      {loading ? (
-        <div className="notes-loading">
-          <div className="notes-spinner" />
-          <p>Loading notes…</p>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="notes-empty">
-          <span className="notes-empty-icon">📝</span>
-          <p>{notes.length === 0 ? "No notes yet — create your first one." : "No notes match your search."}</p>
-        </div>
-      ) : (
-        <>
-          {pinned_notes.length > 0 && (
-            <>
-              <p className="notes-section-label">📌 Pinned</p>
-              <div className="notes-grid">
-                {pinned_notes.map(note => <NoteCard key={note.id} note={note} onClick={() => setActiveNote(note)} onDelete={handleDelete} onPin={handlePin} />)}
-              </div>
-            </>
-          )}
-          {unpinned_notes.length > 0 && (
-            <>
-              {pinned_notes.length > 0 && <p className="notes-section-label">All notes</p>}
-              <div className="notes-grid">
-                {unpinned_notes.map(note => <NoteCard key={note.id} note={note} onClick={() => setActiveNote(note)} onDelete={handleDelete} onPin={handlePin} />)}
-              </div>
-            </>
-          )}
-        </>
-      )}
     </div>
   );
 }
 
 function NoteCard({ note, onClick, onDelete, onPin }: {
-  note: Note;
-  onClick: () => void;
-  onDelete: (id: string) => void;
-  onPin: (note: Note, e: React.MouseEvent) => void;
+  note: Note; onClick: () => void; onDelete: (id: string) => void; onPin: (note: Note, e: React.MouseEvent) => void;
 }) {
   const color = SUBJECT_COLORS[note.subject] || "#888";
   return (
     <div className="note-card" onClick={onClick} style={{ "--note-color": color } as React.CSSProperties}>
       <div className="note-card-top">
-        <span className="note-subject-tag" style={{ background: `${color}22`, color, borderColor: `${color}44` }}>
-          {note.subject}
-        </span>
+        <span className="note-subject-tag" style={{ background: `${color}22`, color, borderColor: `${color}44` }}>{note.subject}</span>
         <div className="note-card-actions">
-          <button className={`note-pin-btn ${note.pinned ? "pinned" : ""}`} onClick={e => onPin(note, e)} title={note.pinned ? "Unpin" : "Pin"}>
-            📌
-          </button>
+          <button className={`note-pin-btn ${note.pinned ? "pinned" : ""}`} onClick={e => onPin(note, e)} title={note.pinned ? "Unpin" : "Pin"}>📌</button>
           <button className="note-delete-x" onClick={e => { e.stopPropagation(); onDelete(note.id); }}>✕</button>
         </div>
       </div>
       <h3 className="note-card-title">{note.title}</h3>
       <p className="note-card-preview">{note.content}</p>
       {note.tags?.length > 0 && (
-        <div className="note-card-tags">
-          {note.tags.slice(0, 3).map(t => <span key={t} className="note-tag-small">#{t}</span>)}
-        </div>
+        <div className="note-card-tags">{note.tags.slice(0, 3).map(t => <span key={t} className="note-tag-small">#{t}</span>)}</div>
       )}
       <span className="note-card-date">
-        {note.createdAt?.seconds
-          ? new Date(note.createdAt.seconds * 1000).toLocaleDateString()
-          : "Just now"}
+        {note.createdAt?.seconds ? new Date(note.createdAt.seconds * 1000).toLocaleDateString() : "Just now"}
       </span>
     </div>
   );

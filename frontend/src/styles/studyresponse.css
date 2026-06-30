@@ -1,0 +1,175 @@
+.study-response {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* BANNERS */
+.study-source-banner, .study-userq-banner {
+  background: rgba(124,106,247,0.1);
+  border: 1px solid rgba(124,106,247,0.25);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #9090a0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.study-source-banner strong, .study-userq-banner strong { color: white; }
+.study-chars { margin-left: auto; font-size: 12px; color: #55556a; }
+
+.study-userq-banner { background: rgba(192,132,252,0.08); border-color: rgba(192,132,252,0.2); }
+
+/* MAIN CARD */
+.study-card {
+  background: #111118;
+  border: 1px solid #2a2a35;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.study-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid #1e1e27;
+  background: #18181f;
+}
+
+.study-card-badge {
+  font-size: 13px;
+  font-weight: 600;
+  color: #c084fc;
+  letter-spacing: 0.3px;
+}
+
+.study-card-actions { display: flex; gap: 8px; }
+
+.study-action-btn {
+  background: #1e1e27;
+  border: 1px solid #35353f;
+  color: #9090a0;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.study-action-btn:hover { background: #2a2a35; color: white; }
+
+.study-card-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.study-section { display: flex; flex-direction: column; gap: 8px; }
+
+.study-h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: white;
+  margin: 0 0 4px;
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.04);
+  border-left: 3px solid #7c6af7;
+  border-radius: 0 6px 6px 0;
+  width: fit-content;
+}
+
+.study-p {
+  font-size: 15px;
+  line-height: 1.75;
+  color: #ccc;
+  margin: 0;
+}
+
+.study-ul {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.study-ul li { font-size: 14px; color: #bbb; line-height: 1.6; }
+
+/* TOGGLE SECTIONS */
+.study-toggle-section {
+  background: #111118;
+  border: 1px solid #2a2a35;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.study-toggle-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #18181f;
+  border: none;
+  color: white;
+  padding: 14px 20px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.study-toggle-btn:hover { background: #1e1e27; }
+
+.study-chevron {
+  transition: transform 0.2s;
+  color: #7c6af7;
+  font-size: 16px;
+}
+.study-chevron.open { transform: rotate(180deg); }
+
+.study-toggle-section .video-grid,
+.study-toggle-section .quiz-container {
+  padding: 20px;
+}
+
+/* VIDEOS (shared with dashboard) */
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.video-card {
+  background: #18181f;
+  border-radius: 12px;
+  text-decoration: none;
+  color: white;
+  border: 1px solid #2a2a35;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.video-card:hover { border-color: #7c6af7; transform: translateY(-2px); text-decoration: none; }
+
+.video-thumb-wrap { position: relative; overflow: hidden; }
+.video-thumb-wrap img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; transition: transform 0.3s; }
+.video-card:hover .video-thumb-wrap img { transform: scale(1.04); }
+
+.video-play-overlay {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; opacity: 0; transition: opacity 0.2s;
+}
+.video-card:hover .video-play-overlay { opacity: 1; }
+
+.video-info { padding: 12px 14px; }
+.video-info h4 {
+  font-size: 13px; font-weight: 600; color: white; margin: 0 0 4px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; line-clamp: 2;
+}
+.video-info p { font-size: 12px; color: #55556a; margin: 0; }
