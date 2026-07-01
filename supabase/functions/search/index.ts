@@ -186,6 +186,56 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // STUDY PLAN MODE
+    if (mode === "studyplan") {
+      const systemPrompt = `You are an expert academic coach who creates detailed, realistic study plans. Always respond with valid JSON only — no markdown, no explanation.`;
+
+      const planPrompt = `
+Create a detailed study plan based on this information:
+${query}
+
+Return a JSON object with EXACTLY this structure:
+{
+  "title": "Study plan title",
+  "summary": "2-3 sentence overview of the plan and approach",
+  "totalDays": <number>,
+  "hoursPerDay": <number>,
+  "days": [
+    {
+      "day": 1,
+      "date": "Day 1",
+      "theme": "Short theme for this day",
+      "tasks": [
+        {
+          "time": "09:00 - 10:30",
+          "activity": "Activity description",
+          "type": "study|review|practice|break|assessment",
+          "subject": "Subject or topic name",
+          "notes": "Optional tip or note"
+        }
+      ],
+      "dailyGoal": "What should be achieved by end of this day"
+    }
+  ],
+  "weeklyMilestones": ["Milestone after week 1", "Milestone after week 2"],
+  "tips": ["Study tip 1", "Study tip 2", "Study tip 3"],
+  "resources": ["Resource suggestion 1", "Resource suggestion 2"]
+}
+
+Make the plan realistic, specific, and actionable. Include short breaks. Vary activity types across the day.
+`;
+      const raw = await callGroq(planPrompt, systemPrompt, true);
+      let parsed;
+      try { parsed = JSON.parse(raw); } catch {
+        return new Response(JSON.stringify({ error: "Failed to generate study plan. Please try again." }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ...parsed, mode: "studyplan" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // FLASHCARD MODE
     if (mode === "flashcard") {
       const systemPrompt = `You are a flashcard generator. Return ONLY a valid JSON array of flashcard objects in this exact format, nothing else: [{"front": "question text", "back": "answer text"}]`;

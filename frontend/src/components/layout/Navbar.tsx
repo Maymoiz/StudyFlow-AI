@@ -66,6 +66,7 @@ export default function Navbar() {
     { to: "/notes", label: "Notes" },
     { to: "/flashcards", label: "Flashcards" },
     { to: "/timer", label: "Timer" },
+    { to: "/studyplan", label: "Study Plan" },
     { to: "/ai", label: "AI Tutor" },
     { to: "/progress", label: "Progress" },
   ];

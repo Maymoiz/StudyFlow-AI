@@ -11,6 +11,7 @@ import AITutor from "./pages/AITutor";
 import Progress from "./pages/Progress";
 import Flashcards from "./pages/flashcards";
 import Timer from "./pages/Timer";
+import StudyPlan from "./pages/StudyPlan";
 import XPPopup from "./components/XPPopup";
 import PomodoroWidget from "./components/PomodoroWidget";
 import { PomodoroProvider } from "./hooks/usePomodoro";
@@ -29,6 +30,7 @@ function App() {
         <Route path="/progress" element={<ProtectedRoute><Progress /></ProtectedRoute>} />
         <Route path="/flashcards" element={<ProtectedRoute><Flashcards /></ProtectedRoute>} />
         <Route path="/timer" element={<ProtectedRoute><Timer /></ProtectedRoute>} />
+        <Route path="/studyplan" element={<ProtectedRoute><StudyPlan /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
