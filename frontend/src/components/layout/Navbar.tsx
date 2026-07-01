@@ -65,6 +65,7 @@ export default function Navbar() {
     { to: "/subjects", label: "Subjects" },
     { to: "/notes", label: "Notes" },
     { to: "/flashcards", label: "Flashcards" },
+    { to: "/timer", label: "Timer" },
     { to: "/ai", label: "AI Tutor" },
     { to: "/progress", label: "Progress" },
   ];
@@ -113,7 +114,7 @@ export default function Navbar() {
               ) : (
                 <>
                   <span className="sf-dropdown-item" onClick={() => { navigate("/login"); setOpen(false); }}>
-                    📥 Login
+                    Login
                   </span>
                   <span className="sf-dropdown-item" onClick={() => { navigate("/signup"); setOpen(false); }}>
                     Sign Up

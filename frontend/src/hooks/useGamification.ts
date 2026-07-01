@@ -19,6 +19,7 @@ export interface GameStats {
   totalNotes: number;
   totalSessions: number;
   totalSubjects: number;
+  totalPomodoros: number;
   achievements: Achievement[];
   xpToNextLevel: number;
   xpProgress: number;
@@ -38,6 +39,7 @@ export const XP_REWARDS = {
   subject: 50,
   pdf: 75,
   streak: 10,
+  pomodoro: 40,
 };
 
 const LEVEL_THRESHOLDS = [
@@ -61,6 +63,9 @@ export const ALL_ACHIEVEMENTS: Achievement[] = [
   { id: "level_10", icon: "🏆", title: "Champion", description: "Reach level 10" },
   { id: "subjects_5", icon: "🌍", title: "Polymath", description: "Create 5 subjects" },
   { id: "xp_1000", icon: "💫", title: "XP Hunter", description: "Earn 1000 XP total" },
+  { id: "first_pomodoro", icon: "🍅", title: "Focused", description: "Complete your first Pomodoro session" },
+  { id: "pomodoro_10", icon: "⏱️", title: "Time Master", description: "Complete 10 Pomodoro sessions" },
+  { id: "pomodoro_50", icon: "🧘", title: "Deep Focus", description: "Complete 50 Pomodoro sessions" },
 ];
 
 function calculateLevel(xp: number): { level: number; xpToNext: number; progress: number } {
@@ -97,7 +102,7 @@ export function useGamification() {
         uid: user.uid,
         name: user.displayName || "User",
         xp: 0, level: 1, streak: 0, lastStudyDate: "",
-        totalNotes: 0, totalSessions: 0, totalSubjects: 0, achievements: [],
+        totalNotes: 0, totalSessions: 0, totalSubjects: 0, totalPomodoros: 0, achievements: [],
       };
       await setDoc(ref, initial);
       setStats({ ...initial, xpToNextLevel: LEVEL_THRESHOLDS[1], xpProgress: 0 });
@@ -113,6 +118,7 @@ export function useGamification() {
       totalNotes: data.totalNotes || 0,
       totalSessions: data.totalSessions || 0,
       totalSubjects: data.totalSubjects || 0,
+      totalPomodoros: data.totalPomodoros || 0,
       achievements: data.achievements || [],
       xpToNextLevel: xpToNext,
       xpProgress: progress,
@@ -156,11 +162,15 @@ export function useGamification() {
       totalNotes: (data.totalNotes || 0) + (action === "note" ? 1 : 0),
       totalSessions: (data.totalSessions || 0) + (action === "search" ? 1 : 0),
       totalSubjects: (data.totalSubjects || 0) + (action === "subject" ? 1 : 0),
+      totalPomodoros: (data.totalPomodoros || 0) + (action === "pomodoro" ? 1 : 0),
     };
 
     if (action === "search" && newTotals.totalSessions === 1) check("first_search");
     if (action === "note" && newTotals.totalNotes === 1) check("first_note");
     if (action === "subject" && newTotals.totalSubjects === 1) check("first_subject");
+    if (action === "pomodoro" && newTotals.totalPomodoros === 1) check("first_pomodoro");
+    if (newTotals.totalPomodoros >= 10) check("pomodoro_10");
+    if (newTotals.totalPomodoros >= 50) check("pomodoro_50");
     if (action === "pdf") check("first_pdf");
     if (newStreak >= 3) check("streak_3");
     if (newStreak >= 7) check("streak_7");
