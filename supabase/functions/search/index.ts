@@ -10,12 +10,22 @@ const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 const YOUTUBE_API_KEY = Deno.env.get("YOUTUBE_API_KEY");
 const MODEL = "openai/gpt-oss-120b";
 
+// gpt-oss models can emit hidden reasoning tokens wrapped in <think>/<reasoning>
+// tags before the actual content. If left in, JSON.parse() on the response blows up.
+// Stripping them here + forcing low reasoning effort keeps output clean and fast.
+function stripReasoningTags(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, "")
+    .trim();
+}
+
 async function callGroq(prompt: string, systemPrompt?: string, jsonMode = false): Promise<string> {
   const messages: any[] = [];
   if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
   messages.push({ role: "user", content: prompt });
 
-  const body: any = { model: MODEL, messages, max_tokens: 5000 };
+  const body: any = { model: MODEL, messages, max_tokens: 5000, reasoning_effort: "low" };
   if (jsonMode) body.response_format = { type: "json_object" };
 
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -28,7 +38,16 @@ async function callGroq(prompt: string, systemPrompt?: string, jsonMode = false)
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error?.message || "Groq request failed");
-  return data.choices[0].message.content.trim();
+
+  const raw = data.choices?.[0]?.message?.content ?? "";
+  const cleaned = stripReasoningTags(raw);
+
+  if (!cleaned) {
+    console.error("Groq returned empty content after stripping reasoning tags. Raw:", raw.slice(0, 500));
+    throw new Error("Groq returned an empty response");
+  }
+
+  return cleaned;
 }
 
 async function searchYouTube(query: string) {
@@ -226,7 +245,8 @@ Make the plan realistic, specific, and actionable. Include short breaks. Vary ac
 `;
       const raw = await callGroq(planPrompt, systemPrompt, true);
       let parsed;
-      try { parsed = JSON.parse(raw); } catch {
+      try { parsed = JSON.parse(raw); } catch (e) {
+        console.error("Study plan JSON parse failed:", e, "Raw:", raw.slice(0, 500));
         return new Response(JSON.stringify({ error: "Failed to generate study plan. Please try again." }), {
           status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -266,7 +286,10 @@ Generate the JSON response now, basing the overview, explanation, summary, key n
 `;
       const raw = await callGroq(aiPrompt, systemPrompt, true);
       let parsed;
-      try { parsed = JSON.parse(raw); } catch { parsed = null; }
+      try { parsed = JSON.parse(raw); } catch (e) {
+        console.error("Document JSON parse failed:", e, "Raw:", raw.slice(0, 500));
+        parsed = null;
+      }
 
       if (!parsed) {
         return new Response(JSON.stringify({ error: "Failed to generate study materials. Please try again." }), {
@@ -301,7 +324,10 @@ Generate the JSON response now. Leave "overview" as an empty string since this i
 `;
     const raw = await callGroq(aiPrompt, systemPrompt, true);
     let parsed;
-    try { parsed = JSON.parse(raw); } catch { parsed = null; }
+    try { parsed = JSON.parse(raw); } catch (e) {
+      console.error("Search JSON parse failed:", e, "Raw:", raw.slice(0, 500));
+      parsed = null;
+    }
 
     if (!parsed) {
       return new Response(JSON.stringify({ error: "Failed to generate a response. Please try again." }), {
