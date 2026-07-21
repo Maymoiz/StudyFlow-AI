@@ -10,6 +10,15 @@ const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 const YOUTUBE_API_KEY = Deno.env.get("YOUTUBE_API_KEY");
 const MODEL = "openai/gpt-oss-120b";
 
+// TEMPORARY DIAGNOSTIC — safe to log: only length + masked first/last 4 chars, never the full key.
+if (GROQ_API_KEY) {
+  console.log(
+    `GROQ_API_KEY diagnostic: length=${GROQ_API_KEY.length}, starts="${GROQ_API_KEY.slice(0, 4)}", ends="${GROQ_API_KEY.slice(-4)}", hasWhitespace=${/\s/.test(GROQ_API_KEY)}`
+  );
+} else {
+  console.error("GROQ_API_KEY diagnostic: env var is undefined/empty!");
+}
+
 // gpt-oss models can emit hidden reasoning tokens wrapped in <think>/<reasoning>
 // tags before the actual content. If left in, JSON.parse() on the response blows up.
 // Stripping them here + forcing low reasoning effort keeps output clean and fast.
@@ -37,7 +46,11 @@ async function callGroq(prompt: string, systemPrompt?: string, jsonMode = false)
     body: JSON.stringify(body),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data?.error?.message || "Groq request failed");
+  if (!res.ok) {
+    console.error("Groq API error - full response:", JSON.stringify(data));
+    console.error("Groq API error - status:", res.status, res.statusText);
+    throw new Error(data?.error?.message || "Groq request failed");
+  }
 
   const raw = data.choices?.[0]?.message?.content ?? "";
   const cleaned = stripReasoningTags(raw);
