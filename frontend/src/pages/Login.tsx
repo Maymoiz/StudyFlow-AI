@@ -4,6 +4,7 @@ import { auth } from "../firebase";
 import { useNavigate } from "react-router-dom";
 import { API } from "../config";
 import "../styles/auth.css";
+import { authorizedFetch } from "../lib/authorizedFetch";
 
 function friendlyError(code: string): string {
   switch (code) {
@@ -19,7 +20,7 @@ function friendlyError(code: string): string {
 
 async function syncUser(user: any) {
   try {
-    await fetch(API.syncUser, {
+    await authorizedFetch(API.syncUser, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -4,6 +4,7 @@ import { auth } from "../firebase";
 import { useNavigate } from "react-router-dom";
 import { API } from "../config";
 import "../styles/auth.css";
+import { authorizedFetch } from "../lib/authorizedFetch";
 
 function friendlyError(code: string): string {
   switch (code) {
@@ -31,7 +32,7 @@ export default function Signup() {
     try {
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(user, { displayName: name });
-      await fetch(API.createUser, {
+      await authorizedFetch(API.createUser, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ uid: user.uid, email: user.email, name, photo: "" }),
@@ -50,7 +51,7 @@ export default function Signup() {
     try {
       const provider = new GoogleAuthProvider();
       const { user } = await signInWithPopup(auth, provider);
-      await fetch(API.createUser, {
+      await authorizedFetch(API.createUser, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
