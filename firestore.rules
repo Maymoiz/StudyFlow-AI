@@ -1,0 +1,61 @@
+rules_version = '2';
+
+// Firestore security rules for StudyFlow-AI.
+// Default posture: deny everything, then explicitly allow only what
+// each collection actually needs, based on how the app uses it.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Subjects, notes, pomodoro sessions, and flashcards all follow the
+    // same pattern: each document has a userId field, and only the user
+    // who owns that document may read, update, or delete it. On create,
+    // we check the userId being written matches the person creating it,
+    // this stops someone from creating a document and assigning it to
+    // a different user's uid.
+    match /subjects/{subjectId} {
+      allow read, update, delete: if request.auth != null
+        && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.userId;
+    }
+
+    match /notes/{noteId} {
+      allow read, update, delete: if request.auth != null
+        && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.userId;
+    }
+
+    match /pomodoroSessions/{sessionId} {
+      allow read, update, delete: if request.auth != null
+        && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.userId;
+    }
+
+    match /flashcards/{cardId} {
+      allow read, update, delete: if request.auth != null
+        && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.userId;
+    }
+
+    // Gamification is different on purpose. The document ID is the
+    // user's own uid, and the leaderboard feature needs to read
+    // everyone's XP to rank them, so read access is open to any
+    // authenticated user. Writing is still locked to the owner only,
+    // nobody should be able to edit someone else's XP or streak.
+    match /gamification/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Anything not explicitly matched above is denied by default.
+    // This is what keeps future collections safe automatically,
+    // a new collection added later has no access until a rule is
+    // written for it on purpose.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
