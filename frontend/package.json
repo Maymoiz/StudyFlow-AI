@@ -12,6 +12,7 @@
   "dependencies": {
     "@sanity/client": "^7.22.1",
     "firebase": "^12.14.0",
+    "groq": "^6.6.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-router-dom": "^7.17.0"
