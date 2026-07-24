@@ -12,7 +12,6 @@ export async function authorizedFetch(url: string, options: RequestInit = {}) {
 
   // getIdToken() returns the cached token if still valid, or refreshes it.
   const idToken = await currentUser.getIdToken();
- 
 
   return fetch(url, {
     ...options,
