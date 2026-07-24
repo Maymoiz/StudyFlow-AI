@@ -5,6 +5,7 @@ import type { StudyData } from "./StudyResponse";
 import { API } from "../config";
 import { useGamification } from "../hooks/useGamification";
 import "../styles/dashboard.css";
+import { authorizedFetch } from "../lib/authorizedFetch";
 
 const ACCEPTED_FILE_TYPES = ".pdf,.txt,.doc,.docx,.md,.csv,.json,.rtf";
 
@@ -53,7 +54,7 @@ export default function Dashboard() {
     if (file) formData.append("file", file);
 
     try {
-      const res = await fetch(API.search, { method: "POST", body: formData });
+      const res = await authorizedFetch(API.search, { method: "POST", body: formData });
       const data = await res.json();
       if (data.error) { setError(`⚠️ ${data.error}`); return; }
       setResponse(data);

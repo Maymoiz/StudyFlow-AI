@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom";
 import MarkdownRenderer from "../components/MarkdownRenderer";
 import { API } from "../config";
 import "../styles/aitutor.css";
+import { authorizedFetch } from "../lib/authorizedFetch";
 
 interface Message {
   role: "user" | "assistant";
@@ -51,7 +52,7 @@ export default function AITutor() {
       if (file) formData.append("file", file);
       setFile(null);
 
-      const res = await fetch(API.search, {
+      const res = await authorizedFetch(API.search, {
         method: "POST",
         body: formData,
       });

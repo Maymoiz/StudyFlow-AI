@@ -1,4 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createRemoteJWKSet, jwtVerify } from "npm:jose@5";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 // Only requests from our real frontend are allowed to call this function
 // from a browser. Anything else gets rejected at the CORS level.
@@ -15,6 +17,80 @@ function corsHeadersFor(req: Request) {
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
   };
+}
+
+// Must match the Firebase project the frontend authenticates against.
+const FIREBASE_PROJECT_ID = "moisha-studyflow-ai";
+
+// Firebase publishes the public keys used to sign ID tokens at this fixed URL.
+const firebaseJWKS = createRemoteJWKSet(
+  new URL("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com")
+);
+
+class AuthError extends Error {}
+class RateLimitError extends Error {}
+
+// Verifies the Authorization header against Firebase's public keys.
+// Same pattern used in supabase/functions/users/index.ts.
+async function requireVerifiedUid(req: Request): Promise<string> {
+  const authHeader = req.headers.get("Authorization") || "";
+  const match = authHeader.match(/^Bearer (.+)$/);
+
+  if (!match) {
+    throw new AuthError("Missing or malformed Authorization header.");
+  }
+
+  const idToken = match[1];
+
+  try {
+    const { payload } = await jwtVerify(idToken, firebaseJWKS, {
+      issuer: `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`,
+      audience: FIREBASE_PROJECT_ID,
+    });
+
+    if (!payload.sub) {
+      throw new AuthError("Token did not contain a subject claim.");
+    }
+
+    return payload.sub;
+  } catch (err) {
+    console.error("Token verification failed:", err);
+    throw new AuthError("Invalid or expired token.");
+  }
+}
+
+// Supabase automatically injects these into every Edge Function, no
+// manual setup needed. The service role key is safe to use here because
+// this code only ever runs server-side, never shipped to the browser.
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
+
+const SEARCH_RATE_LIMIT_PER_HOUR = 20;
+
+// Calls the increment_search_rate_limit database function, which
+// atomically checks and increments this user's count for the current
+// hour. Throws if the user has hit their limit.
+async function enforceRateLimit(uid: string): Promise<void> {
+  const { data, error } = await supabase.rpc("increment_search_rate_limit", {
+    p_uid: uid,
+    p_limit: SEARCH_RATE_LIMIT_PER_HOUR,
+  });
+
+  if (error) {
+    // If the rate limit check itself fails for an infrastructure reason,
+    // we log it but don't block the user, a broken limiter shouldn't
+    // take down the whole feature.
+    console.error("Rate limit check failed:", error);
+    return;
+  }
+
+  if (data === false) {
+    throw new RateLimitError(
+      `You've reached the limit of ${SEARCH_RATE_LIMIT_PER_HOUR} requests per hour. Please try again later.`
+    );
+  }
 }
 
 const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
@@ -120,8 +196,6 @@ function extractPdfText(bytes: Uint8Array): string {
 // Extract text from DOCX (zip-based XML format) — minimal parser
 async function extractDocxText(bytes: Uint8Array): Promise<string> {
   try {
-    // DOCX is a zip; look for document.xml content inline via raw scan
-    // Fallback: decode as latin1 and strip XML tags from readable runs
     const text = new TextDecoder("latin1").decode(bytes);
     const wtRegex = /<w:t[^>]*>([^<]*)<\/w:t>/g;
     const lines: string[] = [];
@@ -156,10 +230,8 @@ async function extractFileText(file: File): Promise<{ text: string; type: string
     return { text: await extractDocxText(bytes), type: "docx" };
   }
   if (fileName.endsWith(".doc")) {
-    // legacy .doc — best effort raw text scan
     return { text: extractPlainText(bytes).replace(/[^\x20-\x7E\n]/g, " "), type: "doc" };
   }
-  // txt, md, csv, json, code files, etc.
   return { text: extractPlainText(bytes), type: "text" };
 }
 
@@ -183,8 +255,6 @@ Include 5-7 keyNotes bullet points (8-10 for documents) and exactly 5 quiz quest
 `;
 
 Deno.serve(async (req: Request) => {
-  // Compute allowed CORS headers once for this specific request, every
-  // corsHeaders reference below in this function now uses this value.
   const corsHeaders = corsHeadersFor(req);
 
   if (req.method === "OPTIONS") {
@@ -192,6 +262,12 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    // Every request must come from a verified, logged-in user, and must
+    // stay within their hourly rate limit, before we spend anything on
+    // Groq or YouTube API calls.
+    const verifiedUid = await requireVerifiedUid(req);
+    await enforceRateLimit(verifiedUid);
+
     let query = "";
     let fileText = "";
     let fileName = "";
@@ -373,6 +449,18 @@ Generate the JSON response now. Leave "overview" as an empty string since this i
     });
 
   } catch (err) {
+    if (err instanceof AuthError) {
+      return new Response(JSON.stringify({ error: err.message }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (err instanceof RateLimitError) {
+      return new Response(JSON.stringify({ error: err.message }), {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     console.error("Search error:", err);
     return new Response(JSON.stringify({ error: "Something went wrong. Please try again." }), {
       status: 500,
