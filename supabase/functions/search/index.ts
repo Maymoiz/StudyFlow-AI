@@ -1,10 +1,21 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+// Only requests from our real frontend are allowed to call this function
+// from a browser. Anything else gets rejected at the CORS level.
+const ALLOWED_ORIGINS = [
+  "https://moisha-studyflow-ai-7ec1f.web.app",
+];
+
+function corsHeadersFor(req: Request) {
+  const origin = req.headers.get("Origin") || "";
+  const isAllowed = ALLOWED_ORIGINS.includes(origin);
+
+  return {
+    "Access-Control-Allow-Origin": isAllowed ? origin : "",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
 
 const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 const YOUTUBE_API_KEY = Deno.env.get("YOUTUBE_API_KEY");
@@ -172,6 +183,10 @@ Include 5-7 keyNotes bullet points (8-10 for documents) and exactly 5 quiz quest
 `;
 
 Deno.serve(async (req: Request) => {
+  // Compute allowed CORS headers once for this specific request, every
+  // corsHeaders reference below in this function now uses this value.
+  const corsHeaders = corsHeadersFor(req);
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

@@ -3,7 +3,7 @@
 
 // import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-// const corsHeaders = {
+// const corsHeadersFor(req) = {
 //   "Access-Control-Allow-Origin": "*",
 //   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 //   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -43,7 +43,7 @@
 
 // Deno.serve(async (req: Request) => {
 //   if (req.method === "OPTIONS") {
-//     return new Response("ok", { headers: corsHeaders });
+//     return new Response("ok", { headers: corsHeadersFor(req) });
 //   }
 
 //   const url = new URL(req.url);
@@ -94,7 +94,7 @@
 // function json(body: unknown, status = 200) {
 //   return new Response(JSON.stringify(body), {
 //     status,
-//     headers: { ...corsHeaders, "Content-Type": "application/json" },
+//     headers: { ...corsHeadersFor(req), "Content-Type": "application/json" },
 //   });
 // }
 
@@ -107,11 +107,22 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createRemoteJWKSet, jwtVerify } from "npm:jose@5";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*", // will be tightened in Fix #3
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
+// Only requests from our real frontend are allowed to call this function
+// from a browser. Anything else gets rejected at the CORS level.
+const ALLOWED_ORIGINS = [
+  "https://moisha-studyflow-ai-7ec1f.web.app",
+];
+
+function corsHeadersFor(req: Request) {
+  const origin = req.headers.get("Origin") || "";
+  const isAllowed = ALLOWED_ORIGINS.includes(origin);
+
+  return {
+    "Access-Control-Allow-Origin": isAllowed ? origin : "",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  };
+}
 
 const SANITY_PROJECT_ID = "gF6MOm1Dm";
 const SANITY_DATASET = "production";
@@ -194,7 +205,7 @@ async function sanityGetDocument(id: string) {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeadersFor(req) });
   }
 
   const url = new URL(req.url);
@@ -218,7 +229,7 @@ Deno.serve(async (req: Request) => {
           createdAt: new Date().toISOString(),
         },
       }]);
-      return json({ success: true });
+      return json(req, { success: true });
     }
 
     // POST /syncUser
@@ -231,7 +242,7 @@ Deno.serve(async (req: Request) => {
           set: { email, name, photo, updatedAt: new Date().toISOString() },
         },
       }]);
-      return json({ success: true });
+      return json(req, { success: true });
     }
 
     // GET /getUser/:uid
@@ -241,27 +252,30 @@ Deno.serve(async (req: Request) => {
       const requestedUid = path.split("/getUser/")[1];
 
       if (requestedUid !== verifiedUid) {
-        return json({ error: "Forbidden" }, 403);
+        return json(req, { error: "Forbidden" }, 403);
       }
 
       const user = await sanityGetDocument(verifiedUid);
-      if (!user) return json({ error: "User not found" }, 404);
-      return json(user);
+      if (!user) return json(req, { error: "User not found" }, 404);
+      return json(req, user);
     }
 
-    return json({ error: "Not found" }, 404);
+    return json(req, { error: "Not found" }, 404);
   } catch (err) {
     if (err instanceof AuthError) {
-      return json({ error: err.message }, 401);
+      return json(req, { error: err.message }, 401);
     }
     console.error("Users function error:", err);
-    return json({ error: "Request failed" }, 500);
+    return json(req, { error: "Request failed" }, 500);
   }
 });
 
-function json(body: unknown, status = 200) {
+// Every call site above now passes req in as the first argument, so this
+// function can build the correct CORS headers for whichever origin made
+// the request, instead of relying on a single global header value.
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...corsHeadersFor(req), "Content-Type": "application/json" },
   });
 }
