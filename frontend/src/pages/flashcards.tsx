@@ -5,6 +5,8 @@ import { collection, addDoc, getDocs, deleteDoc, doc, query, where, serverTimest
 import { db } from "../firebase";
 import { API } from "../config";
 import "../styles/flashcards.css";
+import { authorizedFetch } from "../lib/authorizedFetch";
+
 
 interface Flashcard {
   id: string;
@@ -118,7 +120,7 @@ Make the questions clear and the answers concise (1-3 sentences max). Cover diff
       formData.append("mode", "flashcard");
       if (genFile) formData.append("file", genFile);
 
-      const res = await fetch(API.search, { method: "POST", body: formData });
+      const res = await authorizedFetch(API.search, { method: "POST", body: formData });
       const data = await res.json();
 
       // Parse the JSON from the AI response

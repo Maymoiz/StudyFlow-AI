@@ -7,6 +7,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import "../styles/studyplan.css";
+import { authorizedFetch } from "../lib/authorizedFetch";
 
 interface PlanTask {
   time: string;
@@ -113,7 +114,7 @@ Create a complete ${days}-day study plan with ${hoursPerDay} hours of study per 
       formData.append("query", prompt);
       formData.append("mode", "studyplan");
 
-      const res = await fetch(API.studyplan, { method: "POST", body: formData });
+      const res = await authorizedFetch(API.studyplan, { method: "POST", body: formData });
       const data = await res.json();
 
       if (data.error || !data.days) {
