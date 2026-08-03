@@ -93,18 +93,9 @@ async function enforceRateLimit(uid: string): Promise<void> {
   }
 }
 
-const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+const GROQ_API_KEY = Deno.env.get("CEREBRAS_API_KEY"); // kept the var name so the callGroq() call sites don't need touching
 const YOUTUBE_API_KEY = Deno.env.get("YOUTUBE_API_KEY");
-const MODEL = "openai/gpt-oss-120b";
-
-// TEMPORARY DIAGNOSTIC — safe to log: only length + masked first/last 4 chars, never the full key.
-if (GROQ_API_KEY) {
-  console.log(
-    `GROQ_API_KEY diagnostic: length=${GROQ_API_KEY.length}, starts="${GROQ_API_KEY.slice(0, 4)}", ends="${GROQ_API_KEY.slice(-4)}", hasWhitespace=${/\s/.test(GROQ_API_KEY)}`
-  );
-} else {
-  console.error("GROQ_API_KEY diagnostic: env var is undefined/empty!");
-}
+const MODEL = "gpt-oss-120b"; // Cerebras drops the "openai/" prefix Groq uses
 
 // gpt-oss models can emit hidden reasoning tokens wrapped in <think>/<reasoning>
 // tags before the actual content. If left in, JSON.parse() on the response blows up.
@@ -116,15 +107,15 @@ function stripReasoningTags(text: string): string {
     .trim();
 }
 
-async function callGroq(prompt: string, systemPrompt?: string, jsonMode = false): Promise<string> {
+async function callGroq(prompt: string, systemPrompt?: string, jsonMode = false, maxTokens = 5000): Promise<string> {
   const messages: any[] = [];
   if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
   messages.push({ role: "user", content: prompt });
 
-  const body: any = { model: MODEL, messages, max_tokens: 5000, reasoning_effort: "low" };
+  const body: any = { model: MODEL, messages, max_tokens: maxTokens, reasoning_effort: "low" };
   if (jsonMode) body.response_format = { type: "json_object" };
 
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  const res = await fetch("https://api.cerebras.ai/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -403,7 +394,7 @@ Generate the JSON response now, basing the overview, explanation, summary, key n
       }
 
       const topicPrompt = `Main topic in 3-5 keywords only, no punctuation: ${fileText.slice(0, 500)}`;
-      const keywords = await callGroq(topicPrompt);
+      const keywords = await callGroq(topicPrompt, undefined, false, 100);
       const videos = await searchYouTube(keywords);
 
       return new Response(JSON.stringify({
@@ -441,7 +432,7 @@ Generate the JSON response now. Leave "overview" as an empty string since this i
     }
 
     const keywordPrompt = `Extract the BEST YouTube search keywords for: "${query}". Return ONLY keywords, no punctuation.`;
-    const keywords = await callGroq(keywordPrompt);
+    const keywords = await callGroq(keywordPrompt, undefined, false, 100);
     const videos = await searchYouTube(keywords);
 
     return new Response(JSON.stringify({ ...parsed, videos, mode: "search" }), {

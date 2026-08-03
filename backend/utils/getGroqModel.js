@@ -13,7 +13,16 @@ export async function getLatestModel() {
     "llama3-8b-instant",
     "llama3-70b-specdec",
     "mixtral-8x7b",
-    "gemma2-9b-it"
+    "gemma2-9b-it",
+    "groq/compound",
+    "groq/compound-mini",
+    "llama-3.1-8b-instant",
+    "llama-3.3-70b-versatile",
+    "meta-llama/llama-prompt-guard-2-22m",
+    "meta-llama/llama-prompt-guard-2-86m",
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "openai/gpt-oss-safeguard-20b"
   ];
 
   const chatModels = data.data.filter((m) => allowed.includes(m.id));
