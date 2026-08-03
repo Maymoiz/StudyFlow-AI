@@ -107,37 +107,48 @@ function stripReasoningTags(text: string): string {
     .trim();
 }
 
-async function callGroq(prompt: string, systemPrompt?: string, jsonMode = false, maxTokens = 5000): Promise<string> {
+async function callGroq(
+  prompt: string,
+  systemPrompt?: string,
+  jsonMode = false,
+  maxTokens = 5000
+): Promise<string> {
   const messages: any[] = [];
   if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
   messages.push({ role: "user", content: prompt });
 
-  const body: any = { model: MODEL, messages, max_tokens: maxTokens, reasoning_effort: "low" };
+  const body: any = {
+    model: MODEL,
+    messages,
+    max_completion_tokens: maxTokens,  // Cerebras prefers this
+    reasoning_effort: "low",
+  };
   if (jsonMode) body.response_format = { type: "json_object" };
 
   const res = await fetch("https://api.cerebras.ai/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${GROQ_API_KEY}`,
+      Authorization: `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify(body),
   });
+
   const data = await res.json();
   if (!res.ok) {
-    console.error("Groq API error - full response:", JSON.stringify(data));
-    console.error("Groq API error - status:", res.status, res.statusText);
-    throw new Error(data?.error?.message || "Groq request failed");
+    console.error("Cerebras API error:", res.status, JSON.stringify(data));
+    throw new Error(data?.message || data?.error?.message || "Cerebras request failed");
   }
 
-  const raw = data.choices?.[0]?.message?.content ?? "";
+  const msg = data.choices?.[0]?.message ?? {};
+  // Prefer content; fall back to reasoning if content is empty
+  const raw = (msg.content || msg.reasoning || "").toString();
   const cleaned = stripReasoningTags(raw);
 
   if (!cleaned) {
-    console.error("Groq returned empty content after stripping reasoning tags. Raw:", raw.slice(0, 500));
-    throw new Error("Groq returned an empty response");
+    console.error("Cerebras returned empty content. Raw message:", JSON.stringify(msg).slice(0, 500));
+    throw new Error("Cerebras returned an empty response");
   }
-
   return cleaned;
 }
 
