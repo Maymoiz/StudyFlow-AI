@@ -11,9 +11,6 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// 🔍 Debug: check if your API key is actually loaded
-console.log("API KEY:", import.meta.env.VITE_FIREBASE_API_KEY);
-
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);

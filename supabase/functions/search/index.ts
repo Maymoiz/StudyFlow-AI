@@ -1,157 +1,118 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createRemoteJWKSet, jwtVerify } from "npm:jose@5";
-import { createClient } from "jsr:@supabase/supabase-js@2";
 
-// Only requests from our real frontend are allowed to call this function
-// from a browser. Anything else gets rejected at the CORS level.
-const ALLOWED_ORIGINS = [
-  "https://moisha-studyflow-ai-7ec1f.web.app",
-];
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
-function corsHeadersFor(req: Request) {
-  const origin = req.headers.get("Origin") || "";
-  const isAllowed = ALLOWED_ORIGINS.includes(origin);
-
-  return {
-    "Access-Control-Allow-Origin": isAllowed ? origin : "",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-  };
-}
-
-// Must match the Firebase project the frontend authenticates against.
-const FIREBASE_PROJECT_ID = "moisha-studyflow-ai";
-
-// Firebase publishes the public keys used to sign ID tokens at this fixed URL.
-const firebaseJWKS = createRemoteJWKSet(
-  new URL("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com")
-);
-
-class AuthError extends Error {}
-class RateLimitError extends Error {}
-
-// Verifies the Authorization header against Firebase's public keys.
-// Same pattern used in supabase/functions/users/index.ts.
-async function requireVerifiedUid(req: Request): Promise<string> {
-  const authHeader = req.headers.get("Authorization") || "";
-  const match = authHeader.match(/^Bearer (.+)$/);
-
-  if (!match) {
-    throw new AuthError("Missing or malformed Authorization header.");
-  }
-
-  const idToken = match[1];
-
-  try {
-    const { payload } = await jwtVerify(idToken, firebaseJWKS, {
-      issuer: `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`,
-      audience: FIREBASE_PROJECT_ID,
-    });
-
-    if (!payload.sub) {
-      throw new AuthError("Token did not contain a subject claim.");
-    }
-
-    return payload.sub;
-  } catch (err) {
-    console.error("Token verification failed:", err);
-    throw new AuthError("Invalid or expired token.");
-  }
-}
-
-// Supabase automatically injects these into every Edge Function, no
-// manual setup needed. The service role key is safe to use here because
-// this code only ever runs server-side, never shipped to the browser.
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-);
-
-const SEARCH_RATE_LIMIT_PER_HOUR = 20;
-
-// Calls the increment_search_rate_limit database function, which
-// atomically checks and increments this user's count for the current
-// hour. Throws if the user has hit their limit.
-async function enforceRateLimit(uid: string): Promise<void> {
-  const { data, error } = await supabase.rpc("increment_search_rate_limit", {
-    p_uid: uid,
-    p_limit: SEARCH_RATE_LIMIT_PER_HOUR,
-  });
-
-  if (error) {
-    // If the rate limit check itself fails for an infrastructure reason,
-    // we log it but don't block the user, a broken limiter shouldn't
-    // take down the whole feature.
-    console.error("Rate limit check failed:", error);
-    return;
-  }
-
-  if (data === false) {
-    throw new RateLimitError(
-      `You've reached the limit of ${SEARCH_RATE_LIMIT_PER_HOUR} requests per hour. Please try again later.`
-    );
-  }
-}
-
-const GROQ_API_KEY = Deno.env.get("CEREBRAS_API_KEY"); // kept the var name so the callGroq() call sites don't need touching
+// Single API now: Groq. Set with:
+//   supabase secrets set GROQ_API_KEY=your-groq-key
+const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 const YOUTUBE_API_KEY = Deno.env.get("YOUTUBE_API_KEY");
-const MODEL = "gpt-oss-120b"; // Cerebras drops the "openai/" prefix Groq uses
 
-// gpt-oss models can emit hidden reasoning tokens wrapped in <think>/<reasoning>
-// tags before the actual content. If left in, JSON.parse() on the response blows up.
-// Stripping them here + forcing low reasoning effort keeps output clean and fast.
-function stripReasoningTags(text: string): string {
-  return text
-    .replace(/<think>[\s\S]*?<\/think>/gi, "")
-    .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, "")
-    .trim();
-}
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-async function callGroq(
+// Text-generation model for JSON-structured content (quizzes, plans, flashcards).
+// Fast, high-quality, no search needed here.
+const TEXT_MODEL = "openai/gpt-oss-120b";
+
+// Lightweight model for small/trivial calls (e.g. extracting a few keywords),
+// so they don't eat into the 120B model's per-minute token quota.
+const LIGHT_MODEL = "openai/gpt-oss-20b";
+
+// Search-capable model — has built-in web_search tool.
+const SEARCH_MODEL = "groq/compound-mini";
+
+// ─── AI CALL (Groq, for content/quiz generation — no search) ────
+async function callAI(
   prompt: string,
   systemPrompt?: string,
   jsonMode = false,
-  maxTokens = 5000
+  model: string = TEXT_MODEL,
+  maxTokens: number = 2048
 ): Promise<string> {
   const messages: any[] = [];
   if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
   messages.push({ role: "user", content: prompt });
 
-  const body: any = {
-    model: MODEL,
-    messages,
-    max_completion_tokens: maxTokens,  // Cerebras prefers this
-    reasoning_effort: "low",
-  };
+  const body: any = { model, messages, max_tokens: maxTokens, temperature: 0.7 };
   if (jsonMode) body.response_format = { type: "json_object" };
+  // gpt-oss models spend part of max_tokens on internal reasoning before the
+  // final answer. Keep reasoning low for small/cheap calls so tokens go to
+  // the actual output instead of being silently consumed by "thinking".
+  if (model.startsWith("openai/gpt-oss")) body.reasoning_effort = "low";
 
-  const res = await fetch("https://api.cerebras.ai/v1/chat/completions", {
+  const res = await fetch(GROQ_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${GROQ_API_KEY}`,
+      "Authorization": `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify(body),
   });
 
   const data = await res.json();
+
   if (!res.ok) {
-    console.error("Cerebras API error:", res.status, JSON.stringify(data));
-    throw new Error(data?.message || data?.error?.message || "Cerebras request failed");
+    console.error("Groq AI error:", JSON.stringify(data));
+    throw new Error(data?.error?.message || `Groq AI error: ${res.status}`);
   }
 
-  const msg = data.choices?.[0]?.message ?? {};
-  // Prefer content; fall back to reasoning if content is empty
-  const raw = (msg.content || msg.reasoning || "").toString();
-  const cleaned = stripReasoningTags(raw);
+  let content = data.choices?.[0]?.message?.content?.trim() || "";
 
-  if (!cleaned) {
-    console.error("Cerebras returned empty content. Raw message:", JSON.stringify(msg).slice(0, 500));
-    throw new Error("Cerebras returned an empty response");
+  if (jsonMode) {
+    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) ||
+                      content.match(/(\{[\s\S]*\})/) ||
+                      content.match(/(\[[\s\S]*\])/);
+    if (jsonMatch) content = (jsonMatch[1] || jsonMatch[0]).trim();
   }
-  return cleaned;
+
+  return content;
 }
 
+// ─── GROQ WEB SEARCH (real internet search, compound-mini) ──────
+async function webSearchGroq(query: string): Promise<{ summary: string; sources: any[] }> {
+  try {
+    const res = await fetch(GROQ_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: SEARCH_MODEL,
+        messages: [
+          {
+            role: "user",
+            content: `Search the web for up-to-date, accurate information on: ${query}. Summarize the key facts in a short paragraph.`,
+          },
+        ],
+        compound_custom: {
+          tools: { enabled_tools: ["web_search"] },
+        },
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      console.error("Groq web search error:", JSON.stringify(data));
+      return { summary: "", sources: [] };
+    }
+
+    const choice = data.choices?.[0];
+    const summary = choice?.message?.content?.trim() || "";
+    const sources = choice?.message?.executed_tools?.[0]?.search_results ?? [];
+
+    return { summary, sources };
+  } catch (e) {
+    console.error("Groq web search exception:", e);
+    return { summary: "", sources: [] };
+  }
+}
+
+// ─── YOUTUBE SEARCH ──────────────────────────────────────────────
 async function searchYouTube(query: string) {
   try {
     const encoded = encodeURIComponent(query.replace(/,/g, " ").trim());
@@ -159,19 +120,19 @@ async function searchYouTube(query: string) {
     const res = await fetch(url);
     const data = await res.json();
     return data.items || [];
-  } catch {
+  } catch (e) {
+    console.error("YouTube error:", e);
     return [];
   }
 }
 
-// Extract text from PDF using byte-level parsing (no native libs needed)
+// ─── FILE TEXT EXTRACTION ────────────────────────────────────────
 function extractPdfText(bytes: Uint8Array): string {
   try {
     const text = new TextDecoder("latin1").decode(bytes);
     const lines: string[] = [];
     const btEtRegex = /BT([\s\S]*?)ET/g;
     let match;
-
     while ((match = btEtRegex.exec(text)) !== null) {
       const block = match[1];
       const strRegex = /\(((?:[^()\\]|\\.)*)\)\s*(?:Tj|TJ|'|")/g;
@@ -184,19 +145,15 @@ function extractPdfText(bytes: Uint8Array): string {
         if (s.length > 1) lines.push(s);
       }
     }
-
     const extracted = lines.join(" ").replace(/\s+/g, " ").trim();
     if (extracted.length < 100) {
       return text.replace(/[^\x20-\x7E\n]/g, " ").replace(/\s+/g, " ").trim().slice(0, 14000);
     }
     return extracted.slice(0, 14000);
-  } catch {
-    return "";
-  }
+  } catch { return ""; }
 }
 
-// Extract text from DOCX (zip-based XML format) — minimal parser
-async function extractDocxText(bytes: Uint8Array): Promise<string> {
+function extractDocxText(bytes: Uint8Array): string {
   try {
     const text = new TextDecoder("latin1").decode(bytes);
     const wtRegex = /<w:t[^>]*>([^<]*)<\/w:t>/g;
@@ -205,11 +162,8 @@ async function extractDocxText(bytes: Uint8Array): Promise<string> {
     while ((match = wtRegex.exec(text)) !== null) {
       if (match[1]) lines.push(match[1]);
     }
-    const extracted = lines.join(" ").replace(/\s+/g, " ").trim();
-    return extracted.slice(0, 14000);
-  } catch {
-    return "";
-  }
+    return lines.join(" ").replace(/\s+/g, " ").trim().slice(0, 14000);
+  } catch { return ""; }
 }
 
 function extractPlainText(bytes: Uint8Array): string {
@@ -224,52 +178,47 @@ async function extractFileText(file: File): Promise<{ text: string; type: string
   const fileName = file.name.toLowerCase();
   const fileType = file.type || "";
   const bytes = new Uint8Array(await file.arrayBuffer());
-
   if (fileType === "application/pdf" || fileName.endsWith(".pdf")) {
     return { text: extractPdfText(bytes), type: "pdf" };
   }
   if (fileName.endsWith(".docx") || fileType.includes("wordprocessingml")) {
-    return { text: await extractDocxText(bytes), type: "docx" };
-  }
-  if (fileName.endsWith(".doc")) {
-    return { text: extractPlainText(bytes).replace(/[^\x20-\x7E\n]/g, " "), type: "doc" };
+    return { text: extractDocxText(bytes), type: "docx" };
   }
   return { text: extractPlainText(bytes), type: "text" };
 }
 
-const QUIZ_JSON_INSTRUCTIONS = `
-Return a JSON object with this EXACT shape (no extra commentary, no markdown):
+// ─── QUIZ JSON SCHEMA ────────────────────────────────────────────
+const QUIZ_SCHEMA = `
+Return a JSON object with EXACTLY this shape — no extra text, no markdown:
 {
-  "overview": "1-2 sentence overview (only for documents, otherwise empty string)",
-  "explanation": "2-4 paragraphs of plain text explaining the topic, separated by \\n\\n",
-  "summary": "One concise paragraph summary",
-  "keyNotes": ["point 1", "point 2", "..."],
+  "overview": "1-2 sentence overview (documents only, otherwise empty string)",
+  "explanation": "2-4 paragraphs separated by \\n\\n",
+  "summary": "One concise paragraph",
+  "keyNotes": ["point 1", "point 2", "point 3", "point 4", "point 5"],
   "quiz": [
     {
-      "question": "Question text?",
-      "options": { "A": "option text", "B": "option text", "C": "option text", "D": "option text" },
+      "question": "Question?",
+      "options": { "A": "option", "B": "option", "C": "option", "D": "option" },
       "correctAnswer": "B",
-      "explanation": "One sentence explaining why this is correct"
+      "explanation": "Why this is correct"
     }
   ]
 }
-Include 5-7 keyNotes bullet points (8-10 for documents) and exactly 5 quiz questions.
-`;
+Include 5-7 keyNotes and exactly 5 quiz questions.`;
 
+// ─── MAIN HANDLER ────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
-  const corsHeaders = corsHeadersFor(req);
-
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  try {
-    // Every request must come from a verified, logged-in user, and must
-    // stay within their hourly rate limit, before we spend anything on
-    // Groq or YouTube API calls.
-    const verifiedUid = await requireVerifiedUid(req);
-    await enforceRateLimit(verifiedUid);
+  const json = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 
+  try {
     let query = "";
     let fileText = "";
     let fileName = "";
@@ -282,18 +231,12 @@ Deno.serve(async (req: Request) => {
       query = (formData.get("query") as string) || "";
       mode = (formData.get("mode") as string) || "search";
       const file = formData.get("file") as File | null;
-
       if (file) {
         fileName = file.name;
         const { text } = await extractFileText(file);
         fileText = text;
         if (!fileText || fileText.length < 30) {
-          return new Response(JSON.stringify({
-            error: "Could not extract text from this file. If it's a scanned PDF or image-based document, text extraction isn't supported."
-          }), {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          return json({ error: "Could not extract text from this file." }, 400);
         }
       }
     } else {
@@ -303,168 +246,94 @@ Deno.serve(async (req: Request) => {
       mode = body.mode || "search";
     }
 
-    const hasContent = query.trim() || fileText.trim();
-    if (!hasContent) {
-      return new Response(JSON.stringify({ error: "Please provide a question or upload a file." }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!query.trim() && !fileText.trim()) {
+      return json({ error: "Please provide a question or upload a file." }, 400);
     }
 
-    // STUDY PLAN MODE
+    // ── STUDY PLAN MODE ─────────────────────────────────────────
     if (mode === "studyplan") {
-      const systemPrompt = `You are an expert academic coach who creates detailed, realistic study plans. Always respond with valid JSON only — no markdown, no explanation.`;
+      const systemPrompt = `You are an expert academic coach. Create detailed realistic study plans. Respond with valid JSON only.`;
+      const planPrompt = `Create a study plan for: ${query}
 
-      const planPrompt = `
-Create a detailed study plan based on this information:
-${query}
-
-Return a JSON object with EXACTLY this structure:
+Return this exact JSON structure:
 {
   "title": "Study plan title",
-  "summary": "2-3 sentence overview of the plan and approach",
-  "totalDays": <number>,
-  "hoursPerDay": <number>,
+  "summary": "2-3 sentence overview",
+  "totalDays": 7,
+  "hoursPerDay": 3,
   "days": [
     {
       "day": 1,
       "date": "Day 1",
-      "theme": "Short theme for this day",
+      "theme": "Theme",
       "tasks": [
-        {
-          "time": "09:00 - 10:30",
-          "activity": "Activity description",
-          "type": "study|review|practice|break|assessment",
-          "subject": "Subject or topic name",
-          "notes": "Optional tip or note"
-        }
+        { "time": "09:00-10:30", "activity": "Activity", "type": "study", "subject": "Subject", "notes": "Tip" }
       ],
-      "dailyGoal": "What should be achieved by end of this day"
+      "dailyGoal": "What to achieve today"
     }
   ],
-  "weeklyMilestones": ["Milestone after week 1", "Milestone after week 2"],
-  "tips": ["Study tip 1", "Study tip 2", "Study tip 3"],
-  "resources": ["Resource suggestion 1", "Resource suggestion 2"]
-}
-
-Make the plan realistic, specific, and actionable. Include short breaks. Vary activity types across the day.
-`;
-      const raw = await callGroq(planPrompt, systemPrompt, true);
+  "weeklyMilestones": ["Milestone 1"],
+  "tips": ["Tip 1"],
+  "resources": ["Resource 1"]
+}`;
+      const raw = await callAI(planPrompt, systemPrompt, true, TEXT_MODEL, 3500);
       let parsed;
       try { parsed = JSON.parse(raw); } catch (e) {
-        console.error("Study plan JSON parse failed:", e, "Raw:", raw.slice(0, 500));
-        return new Response(JSON.stringify({ error: "Failed to generate study plan. Please try again." }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        console.error("Study plan parse error:", e, raw.slice(0, 300));
+        return json({ error: "Failed to generate study plan. Please try again." }, 500);
       }
-      return new Response(JSON.stringify({ ...parsed, mode: "studyplan" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ ...parsed, mode: "studyplan" });
     }
 
-    // FLASHCARD MODE
+    // ── FLASHCARD MODE ──────────────────────────────────────────
     if (mode === "flashcard") {
-      const systemPrompt = `You are a flashcard generator. Return ONLY a valid JSON array of flashcard objects in this exact format, nothing else: [{"front": "question text", "back": "answer text"}]`;
-      const answer = await callGroq(query + (fileText ? `\n\nContext:\n${fileText.slice(0, 4000)}` : ""), systemPrompt, false);
-      return new Response(JSON.stringify({ answer, videos: [], mode: "flashcard" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const systemPrompt = `You are a flashcard generator. Return ONLY a valid JSON array. No markdown. Format: [{"front": "question", "back": "answer"}]`;
+      const answer = await callAI(
+        query + (fileText ? `\n\nContext:\n${fileText.slice(0, 4000)}` : ""),
+        systemPrompt
+      );
+      return json({ answer, videos: [], mode: "flashcard" });
     }
 
-    // DOCUMENT MODE — file uploaded, generate structured study materials
+    // ── DOCUMENT MODE ───────────────────────────────────────────
     if (mode === "pdf" || (fileText && !query.trim())) {
-      const systemPrompt = `You are an expert study assistant analyzing an uploaded document. Generate comprehensive, structured study materials strictly from the document content. ${QUIZ_JSON_INSTRUCTIONS}`;
+      const systemPrompt = `You are an expert study assistant. Generate study materials from documents. ${QUIZ_SCHEMA}`;
+      const userNote = query.trim() ? `\nUser question: "${query.trim()}" — address this in the explanation.` : "";
+      const aiPrompt = `Document: "${fileName}"\n\nContent:\n${fileText.slice(0, 8000)}\n${userNote}\n\nGenerate the JSON response now.`;
 
-      const userQuestionNote = query.trim()
-        ? `\nThe user also asked this specific question about the document — make sure to address it directly within the explanation: "${query.trim()}"`
-        : "";
-
-      const aiPrompt = `
-Document name: "${fileName || "uploaded document"}"
-
-Document content:
----
-${fileText}
----
-${userQuestionNote}
-
-Generate the JSON response now, basing the overview, explanation, summary, key notes, and quiz entirely on this document's actual content.
-`;
-      const raw = await callGroq(aiPrompt, systemPrompt, true);
+      const raw = await callAI(aiPrompt, systemPrompt, true);
       let parsed;
       try { parsed = JSON.parse(raw); } catch (e) {
-        console.error("Document JSON parse failed:", e, "Raw:", raw.slice(0, 500));
-        parsed = null;
+        console.error("Document parse error:", e, raw.slice(0, 300));
+        return json({ error: "Failed to generate study materials. Please try again." }, 500);
       }
-
-      if (!parsed) {
-        return new Response(JSON.stringify({ error: "Failed to generate study materials. Please try again." }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const topicPrompt = `Main topic in 3-5 keywords only, no punctuation: ${fileText.slice(0, 500)}`;
-      const keywords = await callGroq(topicPrompt, undefined, false, 100);
-      const videos = await searchYouTube(keywords);
-
-      return new Response(JSON.stringify({
-        ...parsed,
-        videos,
-        mode: "pdf",
-        fileName,
-        extractedLength: fileText.length,
-        userQuery: query.trim() || null,
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const keywords = await callAI(`3-5 YouTube search keywords only for: ${fileText.slice(0, 300)}`, undefined, false, LIGHT_MODEL, 200);
+      const videos = await searchYouTube(keywords.trim() || fileName || "study guide");
+      return json({ ...parsed, videos, mode: "pdf", fileName, extractedLength: fileText.length, userQuery: query.trim() || null });
     }
 
-    // SEARCH MODE
-    const systemPrompt = `You are a helpful, encouraging study tutor. ${QUIZ_JSON_INSTRUCTIONS}`;
-    const aiPrompt = `
-The user wants to learn about: "${query}"
-${fileText ? `\nAdditional context from an uploaded file:\n${fileText.slice(0, 3000)}` : ""}
+    // ── SEARCH MODE (grounded with real Groq web search) ────────
+    const { summary: webSummary, sources } = await webSearchGroq(query);
 
-Generate the JSON response now. Leave "overview" as an empty string since this isn't a document upload.
-`;
-    const raw = await callGroq(aiPrompt, systemPrompt, true);
+    const systemPrompt = `You are a helpful study tutor. ${QUIZ_SCHEMA}`;
+    const groundingBlock = webSummary
+      ? `\n\nCurrent web search findings (use these to keep facts accurate and up to date):\n${webSummary}`
+      : "";
+    const aiPrompt = `Topic: "${query}"${fileText ? `\nContext: ${fileText.slice(0, 3000)}` : ""}${groundingBlock}\n\nGenerate the JSON study response. Set "overview" to empty string.`;
+
+    const raw = await callAI(aiPrompt, systemPrompt, true);
     let parsed;
     try { parsed = JSON.parse(raw); } catch (e) {
-      console.error("Search JSON parse failed:", e, "Raw:", raw.slice(0, 500));
-      parsed = null;
+      console.error("Search parse error:", e, raw.slice(0, 300));
+      return json({ error: "Failed to generate a response. Please try again." }, 500);
     }
-
-    if (!parsed) {
-      return new Response(JSON.stringify({ error: "Failed to generate a response. Please try again." }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const keywordPrompt = `Extract the BEST YouTube search keywords for: "${query}". Return ONLY keywords, no punctuation.`;
-    const keywords = await callGroq(keywordPrompt, undefined, false, 100);
-    const videos = await searchYouTube(keywords);
-
-    return new Response(JSON.stringify({ ...parsed, videos, mode: "search" }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const keywords = await callAI(`YouTube keywords for: "${query}". Return keywords only.`, undefined, false, LIGHT_MODEL, 200);
+    const videos = await searchYouTube(keywords.trim() || query);
+    return json({ ...parsed, videos, sources, mode: "search" });
 
   } catch (err) {
-    if (err instanceof AuthError) {
-      return new Response(JSON.stringify({ error: err.message }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (err instanceof RateLimitError) {
-      return new Response(JSON.stringify({ error: err.message }), {
-        status: 429,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    console.error("Search error:", err);
-    return new Response(JSON.stringify({ error: "Something went wrong. Please try again." }), {
+    console.error("Function error:", err);
+    return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
