@@ -6,6 +6,8 @@ import { API } from "../config";
 import { useGamification } from "../hooks/useGamification";
 import "../styles/dashboard.css";
 import { authorizedFetch } from "../lib/authorizedFetch";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../firebase";
 
 const ACCEPTED_FILE_TYPES = ".pdf,.txt,.doc,.docx,.md,.csv,.json,.rtf";
 
@@ -103,25 +105,38 @@ export default function Dashboard() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSaveAsNote = () => {
-    if (!response || !user) return;
-    const key = `studyflow_notes_${user.uid}`;
-    const existing = JSON.parse(localStorage.getItem(key) || "[]");
+  const [savingNote, setSavingNote] = useState(false);
+
+  const handleSaveAsNote = async () => {
+    if (!response || !user || savingNote) return;
+    setSavingNote(true);
     const content = [
       response.overview ? `${response.overview}\n` : "",
       response.explanation,
       "\nSummary:\n" + response.summary,
       "\nKey Notes:\n" + (response.keyNotes || []).map(n => `• ${n}`).join("\n"),
     ].join("\n");
-    existing.unshift({
-      id: crypto.randomUUID(),
-      title: query.trim() || response.fileName || "AI Generated Note",
-      content,
-      subject: "Other",
-      createdAt: new Date().toISOString(),
-    });
-    localStorage.setItem(key, JSON.stringify(existing));
-    alert("Saved to Notes!");
+
+    try {
+      // Write to the same "notes" Firestore collection the Notes page reads
+      // from, so saved notes show up there immediately.
+      await addDoc(collection(db, "notes"), {
+        userId: user.uid,
+        title: query.trim() || response.fileName || "AI Generated Note",
+        content,
+        subject: "Other",
+        tags: [],
+        pinned: false,
+        createdAt: serverTimestamp(),
+      });
+      await awardXP("note");
+      alert("Saved to Notes!");
+    } catch (e) {
+      console.error("Save note error:", e);
+      alert("Couldn't save the note. Please try again.");
+    } finally {
+      setSavingNote(false);
+    }
   };
 
   return (
@@ -225,7 +240,7 @@ export default function Dashboard() {
       )}
 
       {response && !loading && (
-        <StudyResponse data={response} onCopy={handleCopy} onSaveNote={handleSaveAsNote} copied={copied} />
+        <StudyResponse data={response} onCopy={handleCopy} onSaveNote={handleSaveAsNote} copied={copied} savingNote={savingNote} />
       )}
     </div>
   );

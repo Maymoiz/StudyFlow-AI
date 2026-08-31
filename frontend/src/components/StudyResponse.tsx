@@ -25,9 +25,10 @@ interface Props {
   onCopy?: () => void;
   onSaveNote?: () => void;
   copied?: boolean;
+  savingNote?: boolean;
 }
 
-export default function StudyResponse({ data, onCopy, onSaveNote, copied }: Props) {
+export default function StudyResponse({ data, onCopy, onSaveNote, copied, savingNote }: Props) {
   const [showVideos, setShowVideos] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
 
@@ -51,7 +52,11 @@ export default function StudyResponse({ data, onCopy, onSaveNote, copied }: Prop
           <span className="study-card-badge">🤖 AI Answer</span>
           <div className="study-card-actions">
             {onCopy && <button className="study-action-btn" onClick={onCopy}>{copied ? "✓ Copied" : "Copy"}</button>}
-            {onSaveNote && <button className="study-action-btn" onClick={onSaveNote}>📝 Save Note</button>}
+            {onSaveNote && (
+              <button className="study-action-btn" onClick={onSaveNote} disabled={savingNote}>
+                {savingNote ? "Saving…" : "📝 Save Note"}
+              </button>
+            )}
           </div>
         </div>
 
