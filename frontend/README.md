@@ -1,73 +1,125 @@
-# React + TypeScript + Vite
+# StudyFlow-AI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An AI-powered study companion. Ask questions or upload documents to get instant explanations, key notes, quizzes, related videos, flashcards, and personalized study plans — all backed by real-time web search.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Smart Search** — ask any topic and get an explanation, key notes, and a 5-question quiz, grounded in live web search results
+- **Document Mode** — upload a PDF, DOCX, or text file and get study materials generated directly from its content
+- **Flashcards** — auto-generated front/back flashcards for quick review
+- **Study Plans** — day-by-day personalized study schedules with tasks, milestones, and tips
+- **Notes** — save any generated content as a note for later review
+- **Related Videos** — relevant YouTube videos surfaced alongside every response
+- **Progress Tracking** — XP/gamification for completed study activities
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Frontend**
+- React 19 + TypeScript, built with Vite
+- React Router for navigation
+- Firebase (Auth + Firestore) for user accounts and data
+- Sanity client for content management
+- Deployed to Firebase Hosting via GitHub Actions
 
-## Expanding the ESLint configuration
+**Backend**
+- Supabase Edge Functions (Deno) — powers the `search` endpoint
+- [Groq](https://groq.com) — all AI inference:
+  - `groq/compound-mini` for live web search (built-in search tool)
+  - `openai/gpt-oss-120b` for content generation (quizzes, study plans, flashcards)
+  - `openai/gpt-oss-20b` for lightweight tasks (keyword extraction)
+- YouTube Data API for related video suggestions
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Project Structure
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+StudyFlow-AI/
+├── frontend/              # React + Vite app
+│   └── src/
+│       ├── pages/         # Route-level pages (Notes, StudyPlan, AITutor, etc.)
+│       ├── components/    # Shared components (Dashboard, StudyResponse, etc.)
+│       └── firebase.ts    # Firebase client config
+├── backend/                # Shared backend utilities
+├── supabase/
+│   └── functions/
+│       ├── search/         # Main AI search/quiz/study-plan endpoint (Groq)
+│       └── users/          # User-related endpoint
+├── firebase.json           # Firebase Hosting config
+├── firestore.rules         # Firestore security rules
+└── .github/workflows/      # CI/CD — auto-deploy to Firebase Hosting on push to main
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Getting Started
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Prerequisites
+- Node.js 20+
+- A [Firebase](https://console.firebase.google.com) project (Auth + Firestore enabled)
+- A [Supabase](https://supabase.com) project
+- A [Groq](https://console.groq.com) API key
+- A YouTube Data API key
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Frontend setup
+
+```bash
+cd frontend
+npm install
 ```
+
+Create a `.env` file in `frontend/` with your Firebase web app config:
+
+```
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+```
+
+Run the dev server:
+
+```bash
+npm run dev
+```
+
+Build for production:
+
+```bash
+npm run build
+```
+
+### Backend setup (Supabase Edge Functions)
+
+Install the [Supabase CLI](https://supabase.com/docs/guides/cli), then link your project:
+
+```bash
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+```
+
+Set secrets:
+
+```bash
+supabase secrets set GROQ_API_KEY=your-groq-key
+supabase secrets set YOUTUBE_API_KEY=your-youtube-key
+```
+
+Deploy:
+
+```bash
+supabase functions deploy search
+```
+
+## Deployment
+
+The frontend deploys automatically to Firebase Hosting on every push to `main`, via `.github/workflows/firebase-hosting-merge.yml`. This requires the following GitHub repository secrets to be set (Settings → Secrets and variables → Actions):
+
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `FIREBASE_SERVICE_ACCOUNT_MOISHA_STUDYFLOW_AI` (generate/refresh via `firebase init hosting:github`)
+
+Supabase Edge Functions are deployed separately via `supabase functions deploy <function-name>` and are not part of the GitHub Actions pipeline.
+
