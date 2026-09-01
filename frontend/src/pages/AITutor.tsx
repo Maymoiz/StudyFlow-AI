@@ -50,6 +50,12 @@ export default function AITutor() {
       const formData = new FormData();
       formData.append("query", trimmed);
       if (file) formData.append("file", file);
+
+      // Send recent conversation history so the backend can relate
+      // follow-up questions to what was already discussed.
+      const recentHistory = messages.slice(-6).map(m => ({ role: m.role, content: m.content }));
+      formData.append("history", JSON.stringify(recentHistory));
+
       setFile(null);
 
       const res = await authorizedFetch(API.search, {

@@ -223,6 +223,7 @@ Deno.serve(async (req: Request) => {
     let fileText = "";
     let fileName = "";
     let mode = "search";
+    let history: { role: string; content: string }[] = [];
 
     const contentType = req.headers.get("content-type") || "";
 
@@ -230,6 +231,10 @@ Deno.serve(async (req: Request) => {
       const formData = await req.formData();
       query = (formData.get("query") as string) || "";
       mode = (formData.get("mode") as string) || "search";
+      const rawHistory = formData.get("history") as string | null;
+      if (rawHistory) {
+        try { history = JSON.parse(rawHistory); } catch { history = []; }
+      }
       const file = formData.get("file") as File | null;
       if (file) {
         fileName = file.name;
@@ -244,6 +249,7 @@ Deno.serve(async (req: Request) => {
       query = body.query || "";
       fileText = body.fileText || "";
       mode = body.mode || "search";
+      history = Array.isArray(body.history) ? body.history : [];
     }
 
     if (!query.trim() && !fileText.trim()) {
@@ -313,13 +319,30 @@ Return this exact JSON structure:
     }
 
     // ── SEARCH MODE (grounded with real Groq web search) ────────
-    const { summary: webSummary, sources } = await webSearchGroq(query);
+    // Fold recent history into the search query itself, so a bare follow-up
+    // like "what about side effects?" actually searches with context
+    // instead of that literal fragment.
+    const searchQuery = history.length > 0
+      ? `Context: ${history.slice(-4).map(h => h.content).join(" | ")}\n\nFollow-up question: ${query}`
+      : query;
+    const { summary: webSummary, sources } = await webSearchGroq(searchQuery);
 
     const systemPrompt = `You are a helpful study tutor. ${QUIZ_SCHEMA}`;
     const groundingBlock = webSummary
       ? `\n\nCurrent web search findings (use these to keep facts accurate and up to date):\n${webSummary}`
       : "";
-    const aiPrompt = `Topic: "${query}"${fileText ? `\nContext: ${fileText.slice(0, 3000)}` : ""}${groundingBlock}\n\nGenerate the JSON study response. Set "overview" to empty string.`;
+
+    // Give the model the recent conversation so it can relate a follow-up
+    // question ("what about its long-term effects?") back to what was
+    // already discussed, instead of treating every message as a fresh topic.
+    const historyBlock = history.length > 0
+      ? `\n\nConversation so far (most recent last) — use this to understand what "it", "that", or a short follow-up question refers to:\n${history
+          .slice(-6)
+          .map(h => `${h.role === "user" ? "Student" : "Tutor"}: ${h.content.slice(0, 500)}`)
+          .join("\n")}`
+      : "";
+
+    const aiPrompt = `Topic/question: "${query}"${fileText ? `\nContext: ${fileText.slice(0, 3000)}` : ""}${historyBlock}${groundingBlock}\n\nGenerate the JSON study response, addressing the topic/question above in light of the conversation so far. Set "overview" to empty string.`;
 
     const raw = await callAI(aiPrompt, systemPrompt, true);
     let parsed;
