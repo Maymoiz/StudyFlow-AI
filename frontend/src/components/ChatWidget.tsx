@@ -35,11 +35,8 @@ export default function ChatWidget() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading, isOpen]);
 
-  // Hide entirely on auth pages
-  if (location.pathname === "/login" || location.pathname === "/signup") return null;
-  if (!user) return null;
-
   const logSearch = (query: string) => {
+    if (!user) return;
     const key = `studyflow_searches_${user.uid}`;
     const existing = JSON.parse(localStorage.getItem(key) || "[]");
     existing.unshift({ query, subject: "General", timestamp: new Date().toISOString() });
@@ -96,6 +93,21 @@ export default function ChatWidget() {
     }
   };
 
+  // If another page (e.g. Subjects "Ask AI") requested a prefilled question,
+  // open the widget and send it automatically, once. Declared before any
+  // early return so hook call order stays consistent across renders.
+  useEffect(() => {
+    if (pendingPrefill && isOpen) {
+      sendMessage(pendingPrefill, null);
+      clearPendingPrefill();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPrefill, isOpen]);
+
+  // Hide entirely on auth pages
+  if (location.pathname === "/login" || location.pathname === "/signup") return null;
+  if (!user) return null;
+
   const handleSend = () => {
     const trimmed = input.trim();
     if (!trimmed && !file) return;
@@ -108,16 +120,6 @@ export default function ChatWidget() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
-
-  // If another page (e.g. Subjects "Ask AI") requested a prefilled question,
-  // open the widget and send it automatically, once.
-  useEffect(() => {
-    if (pendingPrefill && isOpen) {
-      sendMessage(pendingPrefill, null);
-      clearPendingPrefill();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingPrefill, isOpen]);
 
   return (
     <>
