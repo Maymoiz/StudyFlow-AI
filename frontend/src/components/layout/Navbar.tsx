@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useChatWidget } from "../../context/ChatWidgetContext";
 import logo from "../../assets/Moi-Tech.png";
 import "./navbar.css";
 
@@ -37,6 +38,7 @@ function Avatar({ user }: { user: any }) {
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const { user, signOut } = useAuth();
+  const { open: openChat } = useChatWidget();
   const navigate = useNavigate();
   const location = useLocation();
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -67,7 +69,6 @@ export default function Navbar() {
     { to: "/flashcards", label: "Flashcards" },
     { to: "/timer", label: "Timer" },
     { to: "/studyplan", label: "Study Plan" },
-    { to: "/ai", label: "AI Tutor" },
     { to: "/progress", label: "Progress" },
   ];
 
@@ -88,6 +89,7 @@ export default function Navbar() {
             {label}
           </Link>
         ))}
+        <button className="sf-link" onClick={openChat}>AI Tutor</button>
 
         <div className="sf-avatar-wrapper" ref={dropdownRef}>
           <button className="sf-avatar-btn" onClick={() => setOpen(o => !o)}>

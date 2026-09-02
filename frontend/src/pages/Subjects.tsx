@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useGamification } from "../hooks/useGamification";
+import { useChatWidget } from "../context/ChatWidgetContext";
 import {
   collection, addDoc, getDocs, updateDoc, deleteDoc,
   doc, query, where, serverTimestamp,
@@ -31,7 +31,7 @@ const COLOR_OPTIONS = [
 export default function Subjects() {
   const { user } = useAuth();
   const { awardXP } = useGamification();
-  const navigate = useNavigate();
+  const { askAI: askAIWidget } = useChatWidget();
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,7 +149,7 @@ export default function Subjects() {
     (s.topics || []).some(t => t.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const askAI = (topic: string) => navigate("/ai", { state: { prefill: `Explain ${topic}` } });
+  const askAI = (topic: string) => askAIWidget(`Explain ${topic}`);
 
   return (
     <div className="subjects-page">

@@ -58,6 +58,9 @@
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
   white-space: nowrap;
+  background: none;
+  border: none;
+  font-family: inherit;
 }
 
 .sf-link:hover {
