@@ -296,7 +296,10 @@ Return this exact JSON structure:
       const systemPrompt = `You are a flashcard generator. Return ONLY a valid JSON array. No markdown. Format: [{"front": "question", "back": "answer"}]`;
       const answer = await callAI(
         query + (fileText ? `\n\nContext:\n${fileText.slice(0, 4000)}` : ""),
-        systemPrompt
+        systemPrompt,
+        false,
+        TEXT_MODEL,
+        4096 // enough headroom for up to ~30 question/answer pairs
       );
       return json({ answer, videos: [], mode: "flashcard" });
     }

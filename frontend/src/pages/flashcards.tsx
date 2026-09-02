@@ -71,7 +71,7 @@ export default function Flashcards() {
   const [genTopic, setGenTopic] = useState("");
   const [genSubject, setGenSubject] = useState("Other");
   const [genDeck, setGenDeck] = useState("");
-  const [genCount, setGenCount] = useState(10);
+  const [genCount, setGenCount] = useState(20);
   const [genFile, setGenFile] = useState<File | null>(null);
   const [genError, setGenError] = useState("");
 
